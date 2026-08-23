@@ -1,0 +1,36 @@
+| Feature               | Method   | Endpoint                               | Purpose                         |
+| --------------------- | -------- | -------------------------------------- | ------------------------------- |
+
+| **Users**             | `POST`   | `/api/users`                           | Register/create a user          |
+|                       | `GET`    | `/api/users`                           | Get all users                   |
+|                       | `GET`    | `/api/users/{id}`                      | Get a user by ID                |
+|                       | `GET`    | `/api/users/email/{email}`             | Find user by email              |
+|                       | `PUT`    | `/api/users/{id}`                      | Update user details             |
+|                       | `DELETE` | `/api/users/{id}`                      | Delete user                     |
+
+| **Medicines**         | `POST`   | `/api/medicines`                       | Add a medicine                  |
+|                       | `GET`    | `/api/medicines/{id}`                  | Get medicine details            |
+|                       | `GET`    | `/api/medicines/user/{userId}`         | Get all medicines of a user     |
+|                       | `GET`    | `/api/medicines`                       | Get all medicines               |
+|                       | `PUT`    | `/api/medicines/{id}`                  | Update medicine                 |
+|                       | `DELETE` | `/api/medicines/{id}`                  | Delete medicine                 |
+
+| **Schedules**         | `POST`   | `/api/schedules`                       | Create medicine schedule        |
+|                       | `GET`    | `/api/schedules/{id}`                  | Get schedule                    |
+|                       | `GET`    | `/api/schedules/medicine/{medicineId}` | Get schedules for a medicine    |
+|                       | `PUT`    | `/api/schedules/{id}`                  | Update schedule                 |
+|                       | `DELETE` | `/api/schedules/{id}`                  | Delete schedule                 |
+
+| **Medicine Logs**     | `POST`   | `/api/logs`                            | Create a medicine log           |
+|                       | `GET`    | `/api/logs/{id}`                       | Get a particular log            |
+|                       | `GET`    | `/api/logs/schedule/{scheduleId}`      | Get logs for a schedule         |
+|                       | `GET`    | `/api/logs/user/{userId}`              | Get user's medicine history     |
+|                       | `PUT`    | `/api/logs/{id}`                       | Update log/status               |
+
+| **Dashboard**         | `GET`    | `/api/dashboard/{userId}`              | Get dashboard information       |
+
+| **Today's Medicines** | `GET`    | `/api/users/{userId}/today`            | Get today's scheduled medicines |
+
+| **Upcoming**          | `GET`    | `/api/users/{userId}/upcoming`         | Get upcoming medicine doses     |
+
+| **History**           | `GET`    | `/api/users/{userId}/history`          | Get medicine-taking history     |
