@@ -18,7 +18,7 @@ public class Medicine {
 
     private String description;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
@@ -28,8 +28,10 @@ public class Medicine {
             orphanRemoval = true
     )
     private List<MedicineSchedule> schedules = new ArrayList<>();
+
     public Medicine() {
     }
+
     public List<MedicineSchedule> getSchedules() {
         return schedules;
     }
@@ -37,6 +39,7 @@ public class Medicine {
     public void setSchedules(List<MedicineSchedule> schedules) {
         this.schedules = schedules;
     }
+
     public Long getId() {
         return id;
     }
