@@ -13,20 +13,25 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private String name;
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(nullable = false)
     private String password;
+
     @OneToMany(
             mappedBy = "user",
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
     private List<Medicine> medicines = new ArrayList<>();
+
     public User() {
     }
+
     public List<Medicine> getMedicines() {
         return medicines;
     }

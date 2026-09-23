@@ -44,6 +44,7 @@ public class MedicineLog {
     private LocalDateTime actionTime;
 
     @Enumerated(EnumType.STRING)
+
     @Column(nullable = false)
     private LogStatus status;
 

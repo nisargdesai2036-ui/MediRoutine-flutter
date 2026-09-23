@@ -1,22 +1,20 @@
 package com.example.mediroutine.controller;
 
+import com.example.mediroutine.dto.UserLoginRequest;
 import com.example.mediroutine.dto.UserRequest;
 import com.example.mediroutine.dto.UserResponse;
 import com.example.mediroutine.entity.User;
+import com.example.mediroutine.repository.UserRepository;
 import com.example.mediroutine.service.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
+
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -37,6 +35,29 @@ public class UserController {
         User savedUser = userService.saveUser(user);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(savedUser));
     }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody UserLoginRequest request) {
+
+        Optional<User> client = userService.getUserByEmail(request.getEmail());
+
+        if (client.isEmpty()) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body("Invalid email or password");
+        }
+
+        User existingClient = client.get();
+
+        if (!existingClient.getPassword().equals(request.getPassword())) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .body("Invalid email or password");
+        }
+
+        return ResponseEntity.ok("Login successful");
+    }
+
 
     @GetMapping
     public List<UserResponse> getAllUsers() {

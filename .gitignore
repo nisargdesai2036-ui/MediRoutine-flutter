@@ -35,3 +35,8 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# Local configuration and dependencies
+local.properties
+node_modules/
+

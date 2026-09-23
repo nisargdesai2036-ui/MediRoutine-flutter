@@ -33,7 +33,6 @@ public class MedicineSchedule {
      */
     private String dosage;
 
-
     private Integer quantity;
 
     private String unit;
@@ -81,6 +80,7 @@ public class MedicineSchedule {
     private LocalDate startDate;
 
     private LocalDate endDate;
+
     @OneToMany(
             mappedBy = "schedule",
             cascade = CascadeType.ALL,
@@ -89,14 +89,6 @@ public class MedicineSchedule {
     private List<MedicineLog> logs = new ArrayList<>();
 
     public MedicineSchedule() {
-    }
-
-    public List<MedicineLog> getLogs() {
-        return logs;
-    }
-
-    public void setLogs(List<MedicineLog> logs) {
-        this.logs = logs;
     }
 
     public Long getId() {
@@ -113,6 +105,14 @@ public class MedicineSchedule {
 
     public void setMedicine(Medicine medicine) {
         this.medicine = medicine;
+    }
+
+    public List<MedicineLog> getLogs() {
+        return logs;
+    }
+
+    public void setLogs(List<MedicineLog> logs) {
+        this.logs = logs;
     }
 
     public String getDosage() {
