@@ -1,5 +1,6 @@
 package com.example.mediroutine.controller;
 
+import com.example.mediroutine.dto.AddMedicineRequest;
 import com.example.mediroutine.dto.MedicineRequest;
 import com.example.mediroutine.dto.MedicineResponse;
 import com.example.mediroutine.entity.Medicine;
@@ -25,19 +26,33 @@ public class MedicineController {
         this.userService = userService;
     }
 
-    @PostMapping
-    public ResponseEntity<MedicineResponse> createMedicine(@RequestBody MedicineRequest request) {
-        return userService.getUserById(request.getUserId())
-                .map(user -> {
-                    Medicine medicine = new Medicine();
-                    medicine.setName(request.getName());
-                    medicine.setDescription(request.getDescription());
-                    medicine.setUser(user);
+    @PostMapping("/add")
+    public ResponseEntity<MedicineResponse> createMedicine(@RequestBody AddMedicineRequest request) {
 
-                    Medicine savedMedicine = medicineService.saveMedicine(medicine);
-                    return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(savedMedicine));
+        Long userId = request.getMedicine().getUserId();
+        return userService.getUserById(userId)
+                .map(user -> {
+
+                    Medicine savedMedicine =
+                            medicineService.addMedicineWithSchedule(
+                                    request,
+                                    user
+                            );
+                    return ResponseEntity
+                            .status(HttpStatus.CREATED)
+                            .body(toResponse(savedMedicine));
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    private MedicineResponse toResponse(Medicine medicine) {
+
+        return new MedicineResponse(
+                medicine.getId(),
+                medicine.getName(),
+                medicine.getDescription(),
+                medicine.getUser().getId()
+        );
     }
 
     @GetMapping
@@ -96,12 +111,5 @@ public class MedicineController {
         return ResponseEntity.ok(toResponse(savedMedicine));
     }
 
-    private MedicineResponse toResponse(Medicine medicine) {
-        return new MedicineResponse(
-                medicine.getId(),
-                medicine.getName(),
-                medicine.getDescription(),
-                medicine.getUser().getId()
-        );
-    }
+
 }

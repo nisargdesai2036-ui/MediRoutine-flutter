@@ -55,7 +55,7 @@ public class UserController {
                     .body("Invalid email or password");
         }
 
-        return ResponseEntity.ok("Login successful");
+        return ResponseEntity.ok(toResponse(existingClient));
     }
 
 
@@ -104,6 +104,14 @@ public class UserController {
         userService.deleteUserById(id);
         return ResponseEntity.noContent().build();
     }
+    @PatchMapping("/update/{id}")
+    public ResponseEntity<User> UpdateUserProfile(@PathVariable Long id,@RequestBody UserRequest request)
+    {
+        User updatedUser=userService.updateUser(id,request);
+
+        return ResponseEntity.ok(updatedUser);
+
+    };
 
     private UserResponse toResponse(User user) {
         return new UserResponse(

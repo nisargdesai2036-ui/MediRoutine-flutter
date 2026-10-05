@@ -1,5 +1,6 @@
 package com.example.mediroutine.service;
 
+import com.example.mediroutine.dto.UserRequest;
 import com.example.mediroutine.entity.User;
 import com.example.mediroutine.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -37,4 +38,23 @@ public class UserService {
     }
 
 
+    public User updateUser(Long id, UserRequest request) {
+        //We are getting from the flutter itself.(session is user)
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (request.getName() != null) {
+            user.setName(request.getName());
+        }
+
+        if (request.getEmail() != null) {
+            user.setEmail(request.getEmail());
+        }
+
+        if (request.getPassword() != null) {
+            user.setPassword(request.getPassword());
+        }
+
+         return userRepository.save(user);
+    }
 }
