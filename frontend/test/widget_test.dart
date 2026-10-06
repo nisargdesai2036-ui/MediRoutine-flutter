@@ -1,31 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/main.dart';
+import 'package:frontend/screens/client_dashboard.dart';
+import 'package:frontend/Sessions/UserSession.dart';
 
 void main() {
-  testWidgets('Login page inputs and navigation to ClientDashboard test', (WidgetTester tester) async {
-    await tester.pumpWidget(const MediRoutineApp());
+  setUp(() {
+    UserSession.setUser(
+      Userid: 1,
+      Name: 'John Doe',
+      Email: 'john@example.com',
+    );
+  });
 
-    // Verify Login Page elements
-    expect(find.text('Client Login'), findsOneWidget);
-    expect(find.text('ClientName'), findsOneWidget);
-    expect(find.text('ClientAge'), findsOneWidget);
-    expect(find.text('Enter'), findsOneWidget);
+  tearDown(() {
+    UserSession.unrestUser();
+  });
 
-    // Enter details in text fields
-    final textFields = find.byType(TextFormField);
-    expect(textFields, findsNWidgets(2));
-
-    await tester.enterText(textFields.at(0), 'John Doe');
-    await tester.enterText(textFields.at(1), '45');
-    await tester.pump();
-
-    // Tap Enter button
-    await tester.tap(find.text('Enter'));
+  testWidgets('ClientDashboard renders user header, routine section, and Add Medicine button', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ClientDashboard(
+          userId: 1,
+          clientName: 'John Doe',
+          clientAge: 45,
+          clientEmail: 'john@example.com',
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    // Verify ClientDashboard elements
+    // Verify user information in app bar and greeting banner
     expect(find.text('John Doe'), findsWidgets);
+    expect(find.text("Today's Medicine Routine"), findsOneWidget);
     expect(find.text('Add Medicine'), findsOneWidget);
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/Sessions/UserSession.dart';
 import '../coreapi/ApiService.dart';
 import '../models/UserLogin.dart';
 import 'client_dashboard.dart';
@@ -36,7 +37,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    final password = _passwordController.text;
 
     final request = Userlogin(
       email: email,
@@ -44,15 +45,66 @@ class _LoginPageState extends State<LoginPage> {
     );
 
     try {
-      await ApiService.post('/api/users/login', request.toJson());
+      final response = await ApiService.post('/api/users/login', request.toJson());
+
+      //Make the data more flexible
+      //Map can transver across the response type object
+      Map<String, dynamic>? userData;
+
+      if (response is Map<String, dynamic>) {
+        userData = response;
+      } else if (response is Map) {
+        userData = Map<String, dynamic>.from(response);
+      } else {
+        // Fallback when backend returns plain text (e.g. "Login successful")
+        try {
+          final userDetails = await ApiService.get('/api/users/email/$email');
+          if (userDetails is Map<String, dynamic>) {
+            userData = userDetails;
+          } else if (userDetails is Map) {
+            userData = Map<String, dynamic>.from(userDetails);
+          }
+        } catch (_) {
+          // If fetching by email fails, proceed with available info
+        }
+      }
+
+      int? userId;
+      if (userData != null && userData['id'] != null) {
+        final idVal = userData['id'];
+        if (idVal is int) {
+          userId = idVal;
+        } else if (idVal is num) {
+          userId = idVal.toInt();
+        } else {
+          userId = int.tryParse(idVal.toString());
+        }
+      }
+
+      final emailPrefix = email.split('@').first;
+      final String userName = (userData != null &&
+              userData['name'] != null &&
+              userData['name'].toString().trim().isNotEmpty)
+          ? userData['name'].toString().trim()
+          : (emailPrefix.isNotEmpty ? emailPrefix : 'Client');
+
+      final String userEmail = (userData != null &&
+              userData['email'] != null &&
+              userData['email'].toString().trim().isNotEmpty)
+          ? userData['email'].toString().trim()
+          : email;
+
+      UserSession.setUser(
+        Userid: userId,
+        Name: userName,
+        Email: userEmail,
+      );
 
       if (!mounted) return;
 
-      final displayName = email.split('@').first;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Logged in successfully as $email'),
+          content: Text('Logged in successfully as $userEmail'),
           backgroundColor: const Color(0xFF0077B6),
           behavior: SnackBarBehavior.floating,
         ),
@@ -62,8 +114,11 @@ class _LoginPageState extends State<LoginPage> {
         context,
         MaterialPageRoute(
           builder: (context) => ClientDashboard(
-            clientName: displayName.isNotEmpty ? displayName : 'Client',
+            userId: userId,
+            clientName: userName,
             clientAge: 25,
+            clientEmail: userEmail,
+            clientPassword: password,
           ),
         ),
       );

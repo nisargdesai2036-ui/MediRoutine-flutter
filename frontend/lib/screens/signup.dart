@@ -3,6 +3,7 @@ import 'client_dashboard.dart';
 import 'login_page.dart';
 import '../coreapi/ApiService.dart';
 import '../models/UserRegister.dart';
+import '../Sessions/UserSession.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -77,19 +78,41 @@ class _SignUpPageState extends State<SignUpPage> {
         ),
       );
 
-      // Extract client name from response if available
+      // Extract client details from response if available
       String displayName = name;
-      if (response is Map && response.containsKey('name')) {
-        displayName = response['name']?.toString() ?? name;
+      int? userId;
+      if (response is Map) {
+        if (response.containsKey('name') && response['name'] != null) {
+          displayName = response['name']?.toString() ?? name;
+        }
+        if (response.containsKey('id') && response['id'] != null) {
+          final idVal = response['id'];
+          if (idVal is int) {
+            userId = idVal;
+          } else if (idVal is num) {
+            userId = idVal.toInt();
+          } else {
+            userId = int.tryParse(idVal.toString());
+          }
+        }
       }
+
+      UserSession.setUser(
+        Userid: userId,
+        Name: displayName,
+        Email: email,
+      );
 
       // Navigate to ClientDashboard after new user signup is completed
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (context) => ClientDashboard(
+            userId: userId,
             clientName: displayName,
             clientAge: 25,
+            clientEmail: email,
+            clientPassword: password,
           ),
         ),
       );

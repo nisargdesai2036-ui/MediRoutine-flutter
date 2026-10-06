@@ -32,6 +32,24 @@ class ApiService {
     return handleResponse(response);
   }
 
+  static Future<dynamic> patch(String endpoint, Map<String, dynamic> data) async {
+    //check starting parameter url should be with endpoint.
+    final cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/$endpoint';
+
+    final response = await http
+        .patch(
+          Uri.parse("$baseUrl$cleanEndpoint"),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: jsonEncode(data),
+        )
+        .timeout(_timeout);
+
+    return handleResponse(response);
+  }
+
+
   static Future<dynamic> post(String endpoint, Map<String, dynamic> data) async {
     final cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/$endpoint';
     final response = await http
@@ -70,6 +88,8 @@ class ApiService {
 
     return handleResponse(response);
   }
+
+
 
   static dynamic handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
