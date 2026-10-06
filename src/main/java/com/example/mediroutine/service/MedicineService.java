@@ -9,6 +9,7 @@ import com.example.mediroutine.entity.User;
 import com.example.mediroutine.repository.MedicineRepository;
 import com.example.mediroutine.repository.MedicineScheduleRepository;
 import jakarta.transaction.Transactional;
+import com.example.mediroutine.dto.UpdateMedicineRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -62,9 +63,9 @@ public class MedicineService
         Medicine savedMedicine = medicineRepository.save(medicine);
 
         // 2) Medicine Schedule
-        MedicineScheduleRequest medicineScheduleRequest  =request.getSchedule();
+        MedicineScheduleRequest medicineScheduleRequest = request.getSchedule();
 
-        MedicineSchedule schedule=new MedicineSchedule();
+        MedicineSchedule schedule = new MedicineSchedule();
         schedule.setMedicine(savedMedicine);
         schedule.setDosage(medicineScheduleRequest.getDosage());
         schedule.setQuantity(medicineScheduleRequest.getQuantity());
@@ -80,5 +81,28 @@ public class MedicineService
         medicineScheduleRepository.save(schedule);
 
         return savedMedicine;
+
     }
+
+    public Medicine updateMedicinePartial(
+                Long medicineId,
+                UpdateMedicineRequest request) {
+
+            Medicine medicine = medicineRepository.findById(medicineId)
+                    .orElseThrow(() ->
+                            new RuntimeException("Medicine not found")
+                    );
+
+            // Only update fields that were actually sent
+            if (request.getName() != null) {
+                medicine.setName(request.getName());
+            }
+
+            if (request.getDescription() != null) {
+                medicine.setDescription(request.getDescription());
+            }
+
+            return medicineRepository.save(medicine);
+        }
 }
+

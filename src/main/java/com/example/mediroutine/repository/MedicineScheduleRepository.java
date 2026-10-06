@@ -4,8 +4,19 @@ import com.example.mediroutine.entity.MedicineSchedule;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
-public interface MedicineScheduleRepository extends JpaRepository<MedicineSchedule, Long> {
+public interface MedicineScheduleRepository
+        extends JpaRepository<MedicineSchedule, Long> {
 
-    List<MedicineSchedule> findByMedicineId(Long medicineId);
+    List<MedicineSchedule> findByMedicineUserId(Long userId);
+
+    Optional<MedicineSchedule> findByIdAndMedicineId(
+            Long scheduleId,
+            Long medicineId
+    );
+
+    List<MedicineSchedule> findByMedicineId(
+            Long medicineId
+    );
 }
