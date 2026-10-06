@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_page.dart';
 import 'screens/signup.dart';
+import 'screens/profile_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,6 +42,7 @@ class MediRoutineApp extends StatelessWidget {
       routes: {
         '/signup': (context) => const SignUpPage(),
         '/login': (context) => const LoginPage(),
+        '/profilepage': (context) => const ProfilePage(),
       },
     );
   }

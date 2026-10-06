@@ -1,236 +1,920 @@
 import 'package:flutter/material.dart';
 
+import 'profile_page.dart';
+import '../dialogs/add_medicine_dialog.dart';
+import '../dialogs/edit_medicine_dialog.dart';
+import '../Sessions/UserSession.dart';
+import '../coreapi/ApiService.dart';
+
+// ============================================================================
+// CLIENT DASHBOARD
+// ============================================================================
+
 class ClientDashboard extends StatefulWidget {
+  final int? userId;
   final String clientName;
   final int clientAge;
+  final String clientEmail;
+  final String clientPassword;
 
   const ClientDashboard({
     super.key,
+    this.userId,
     required this.clientName,
     required this.clientAge,
+    this.clientEmail = '',
+    this.clientPassword = '',
   });
 
   @override
   State<ClientDashboard> createState() => _ClientDashboardState();
 }
 
-class _ClientDashboardState extends State<ClientDashboard> {
-  // Sample routine items for demonstration
-  final List<Map<String, dynamic>> _routines = [
-    {
-      'name': 'Amoxicillin 500mg',
-      'instruction': 'Take 1 tablet after breakfast',
-      'time': '08:30 AM',
-      'taken': true,
-      'color': 0xFF4CAF50,
-      'tag': 'Morning',
-    },
-    {
-      'name': 'Vitamin D3 & Calcium',
-      'instruction': 'Take 1 capsule with water',
-      'time': '01:00 PM',
-      'taken': false,
-      'color': 0xFF2196F3,
-      'tag': 'Afternoon',
-    },
-    {
-      'name': 'Paracetamol 650mg',
-      'instruction': 'Take 1 tablet before sleeping',
-      'time': '09:00 PM',
-      'taken': false,
-      'color': 0xFF9C27B0,
-      'tag': 'Night',
-    },
-  ];
+// ============================================================================
+// CLIENT DASHBOARD STATE
+// ============================================================================
 
-  void _showProfileModal() {
-    showModalBottomSheet(
+class _ClientDashboardState extends State<ClientDashboard> {
+  // ==========================================================================
+  // ROUTINES
+  // ==========================================================================
+
+  final List<Map<String, dynamic>> _routines = [];
+
+  bool _isLoading = false;
+
+  String? _errorMessage;
+
+  // Stores which medicine has been marked as taken
+  final Set<String> _takenKeys = {};
+
+  // ==========================================================================
+  // CURRENT USER ID
+  // ==========================================================================
+
+  int? get _currentUserId => widget.userId ?? UserSession.userid;
+
+  // ==========================================================================
+  // INIT STATE
+  // ==========================================================================
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadMedicines();
+  }
+
+  // ==========================================================================
+  // SAFE INTEGER CONVERSION
+  // ==========================================================================
+
+  int? _toInt(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(value.toString());
+  }
+
+  // ==========================================================================
+  // SAFE MAP CONVERSION
+  // ==========================================================================
+
+  Map<String, dynamic>? _toMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+
+    return null;
+  }
+
+  // ==========================================================================
+  // LOAD MEDICINES
+  // ==========================================================================
+
+  Future<void> _loadMedicines() async {
+    // ------------------------------------------------------------------------
+    // Try to resolve user ID using email if ID is not available
+    // ------------------------------------------------------------------------
+
+    if (_currentUserId == null &&
+        (widget.clientEmail.isNotEmpty || UserSession.email != null)) {
+      final emailToLookup = widget.clientEmail.isNotEmpty
+          ? widget.clientEmail
+          : UserSession.email!;
+
+      try {
+        final encodedEmail = Uri.encodeComponent(emailToLookup);
+
+        final userData = await ApiService.get('/api/users/email/$encodedEmail');
+
+        final userMap = _toMap(userData);
+
+        if (userMap != null && userMap['id'] != null) {
+          final parsedId = _toInt(userMap['id']);
+
+          if (parsedId != null) {
+            UserSession.userid = parsedId;
+          }
+        }
+      } catch (e) {
+        debugPrint('Could not resolve user by email: $e');
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // Get user ID
+    // ------------------------------------------------------------------------
+
+    final userId = _currentUserId;
+
+    if (userId == null) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'User ID is not available';
+        });
+      }
+
+      return;
+    }
+
+    // ------------------------------------------------------------------------
+    // Start loading
+    // ------------------------------------------------------------------------
+
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+
+    try {
+      // ======================================================================
+      // 1. GET MEDICINES
+      // ======================================================================
+
+      List<dynamic> medicineList = [];
+
+      try {
+        final response = await ApiService.get('/api/medicines/user/$userId');
+
+        if (response is List) {
+          medicineList = response;
+        }
+
+        debugPrint('Medicine API returned ${medicineList.length} medicines');
+      } catch (e) {
+        debugPrint('Error fetching medicines: $e');
+      }
+
+      // ======================================================================
+      // 2. CREATE MEDICINE MAP
+      //
+      // Key:
+      //     medicine.id
+      //
+      // Value:
+      //     complete medicine response
+      //
+      // This allows us to later connect:
+      //
+      // schedule.medicineId -> medicine.id
+      // ======================================================================
+
+      final Map<int, Map<String, dynamic>> medicinesMap = {};
+
+      for (final entry in medicineList) {
+        final medicineMap = _toMap(entry);
+
+        if (medicineMap == null) {
+          continue;
+        }
+
+        final medicineId = _toInt(medicineMap['id']);
+
+        if (medicineId == null) {
+          continue;
+        }
+
+        medicinesMap[medicineId] = medicineMap;
+      }
+
+      // ======================================================================
+      // 3. GET SCHEDULES
+      // ======================================================================
+
+      List<dynamic> scheduleList = [];
+
+      try {
+        final response = await ApiService.get('/api/schedules/user/$userId');
+
+        if (response is List) {
+          scheduleList = response;
+        }
+
+        debugPrint('Schedule API returned ${scheduleList.length} schedules');
+      } catch (e) {
+        debugPrint('Error fetching schedules: $e');
+      }
+
+      // ======================================================================
+      // 4. PARSED ROUTINES
+      // ======================================================================
+
+      final List<Map<String, dynamic>> parsedRoutines = [];
+
+      // ======================================================================
+      // 5. PARSE SCHEDULES
+      // ======================================================================
+
+      for (final entry in scheduleList) {
+        final scheduleMap = _toMap(entry);
+
+        if (scheduleMap == null) {
+          continue;
+        }
+
+        // --------------------------------------------------------------------
+        // SCHEDULE ID
+        //
+        // IMPORTANT:
+        // Never use schedule ID as medicine ID.
+        // --------------------------------------------------------------------
+
+        final scheduleId = _toInt(scheduleMap['id']);
+
+        // --------------------------------------------------------------------
+        // MEDICINE ID
+        //
+        // Expected:
+        //
+        // scheduleMap['medicineId']
+        //
+        // OR
+        //
+        // scheduleMap['medicine']['id']
+        // --------------------------------------------------------------------
+
+        int? medicineId = _toInt(scheduleMap['medicineId']);
+
+        if (medicineId == null) {
+          final medicineObject = _toMap(scheduleMap['medicine']);
+
+          if (medicineObject != null) {
+            medicineId = _toInt(medicineObject['id']);
+          }
+        }
+
+        // --------------------------------------------------------------------
+        // If medicine ID is missing, we cannot safely connect the schedule
+        // to a medicine.
+        // --------------------------------------------------------------------
+
+        if (medicineId == null) {
+          debugPrint(
+            'Skipping schedule because medicineId is missing: $scheduleMap',
+          );
+
+          continue;
+        }
+
+        // --------------------------------------------------------------------
+        // FIND MEDICINE
+        // --------------------------------------------------------------------
+
+        final medicineMap = medicinesMap[medicineId];
+
+        if (medicineMap == null) {
+          debugPrint('Medicine $medicineId not found for schedule $scheduleId');
+
+          continue;
+        }
+
+        // --------------------------------------------------------------------
+        // MEDICINE INFORMATION
+        // --------------------------------------------------------------------
+
+        final medicineName =
+            (medicineMap['name'] ?? medicineMap['medicineName'] ?? 'Medicine')
+                .toString();
+
+        final medicineDescription = medicineMap['description']?.toString();
+
+        // --------------------------------------------------------------------
+        // SCHEDULE INFORMATION
+        // --------------------------------------------------------------------
+
+        final dosage = scheduleMap['dosage']?.toString();
+
+        final quantity = scheduleMap['quantity'] ?? 1;
+
+        final unit = scheduleMap['unit']?.toString() ?? 'Tablet';
+
+        final timeStr = _formatTime(scheduleMap['time']?.toString());
+
+        final periodStr = scheduleMap['period']?.toString() ?? 'MORNING';
+
+        final frequencyType =
+            scheduleMap['frequencyType']?.toString() ?? 'DAILY';
+
+        final intervalDays = scheduleMap['intervalDays'];
+
+        final daysOfWeek = scheduleMap['daysOfWeek']?.toString();
+
+        final startDate = scheduleMap['startDate']?.toString();
+
+        final endDate = scheduleMap['endDate']?.toString();
+
+        // --------------------------------------------------------------------
+        // INSTRUCTION
+        // --------------------------------------------------------------------
+
+        String instruction = 'Take as prescribed';
+
+        if (dosage != null && dosage.trim().isNotEmpty) {
+          instruction = 'Take $dosage';
+        }
+
+        // --------------------------------------------------------------------
+        // ROUTINE KEY
+        //
+        // Schedule ID is included so two schedules for the same medicine
+        // can exist independently.
+        // --------------------------------------------------------------------
+
+        final routineKey = '${medicineId}_${scheduleId ?? ''}_$timeStr';
+
+        // --------------------------------------------------------------------
+        // TAKEN
+        // --------------------------------------------------------------------
+
+        final isTaken = _takenKeys.contains(routineKey);
+
+        // --------------------------------------------------------------------
+        // ADD ROUTINE
+        // --------------------------------------------------------------------
+
+        parsedRoutines.add({
+          // User
+          'userId': userId,
+
+          // IDs
+          'id': medicineId,
+          'medicineId': medicineId,
+          'scheduleId': scheduleId,
+
+          // Medicine
+          'name': medicineName,
+          'description': medicineDescription,
+
+          // Schedule
+          'dosage': dosage,
+          'quantity': quantity,
+          'unit': unit,
+          'time': timeStr,
+          'period': periodStr,
+          'frequencyType': frequencyType,
+          'intervalDays': intervalDays,
+          'daysOfWeek': daysOfWeek,
+          'startDate': startDate,
+          'endDate': endDate,
+
+          // UI
+          'instruction': instruction,
+          'taken': isTaken,
+          'routineKey': routineKey,
+          'color': _getColorForPeriod(periodStr, timeStr),
+          'tag': _getTagForPeriod(periodStr, timeStr),
+        });
+      }
+
+      // ======================================================================
+      // FALLBACK
+      //
+      // If schedules API returned nothing, check if medicine API itself
+      // contains schedules.
+      //
+      // This is only a fallback. We still prefer:
+      //
+      // /api/medicines/user/{userId}
+      // /api/schedules/user/{userId}
+      // ======================================================================
+
+      if (parsedRoutines.isEmpty && medicineList.isNotEmpty) {
+        for (final entry in medicineList) {
+          final medicineMap = _toMap(entry);
+
+          if (medicineMap == null) {
+            continue;
+          }
+
+          final medicineId = _toInt(medicineMap['id']);
+
+          if (medicineId == null) {
+            continue;
+          }
+
+          final medicineName =
+              (medicineMap['name'] ?? medicineMap['medicineName'] ?? 'Medicine')
+                  .toString();
+
+          final medicineDescription = medicineMap['description']?.toString();
+
+          // Try possible schedule field names.
+          dynamic schedules = medicineMap['schedules'];
+
+          if (schedules is! List) {
+            schedules = medicineMap['medicineSchedules'];
+          }
+
+          if (schedules is! List) {
+            continue;
+          }
+
+          for (final scheduleEntry in schedules) {
+            final scheduleMap = _toMap(scheduleEntry);
+
+            if (scheduleMap == null) {
+              continue;
+            }
+
+            final scheduleId = _toInt(scheduleMap['id']);
+
+            final dosage = scheduleMap['dosage']?.toString();
+
+            final quantity = scheduleMap['quantity'] ?? 1;
+
+            final unit = scheduleMap['unit']?.toString() ?? 'Tablet';
+
+            final timeStr = _formatTime(scheduleMap['time']?.toString());
+
+            final periodStr = scheduleMap['period']?.toString() ?? 'MORNING';
+
+            final frequencyType =
+                scheduleMap['frequencyType']?.toString() ?? 'DAILY';
+
+            final routineKey = '${medicineId}_${scheduleId ?? ''}_$timeStr';
+
+            final isTaken = _takenKeys.contains(routineKey);
+
+            String instruction = 'Take as prescribed';
+
+            if (dosage != null && dosage.trim().isNotEmpty) {
+              instruction = 'Take $dosage';
+            }
+
+            parsedRoutines.add({
+              'userId': userId,
+
+              'id': medicineId,
+              'medicineId': medicineId,
+              'scheduleId': scheduleId,
+
+              'name': medicineName,
+              'description': medicineDescription,
+
+              'dosage': dosage,
+              'quantity': quantity,
+              'unit': unit,
+
+              'time': timeStr,
+              'period': periodStr,
+              'frequencyType': frequencyType,
+              'intervalDays': scheduleMap['intervalDays'],
+              'daysOfWeek': scheduleMap['daysOfWeek']?.toString(),
+              'startDate': scheduleMap['startDate']?.toString(),
+              'endDate': scheduleMap['endDate']?.toString(),
+
+              'instruction': instruction,
+
+              'taken': isTaken,
+
+              'routineKey': routineKey,
+
+              'color': _getColorForPeriod(periodStr, timeStr),
+
+              'tag': _getTagForPeriod(periodStr, timeStr),
+            });
+          }
+        }
+      }
+
+      // ======================================================================
+      // SORT ROUTINES BY TIME
+      // ======================================================================
+
+      parsedRoutines.sort((a, b) {
+        final timeA = _convertTimeToMinutes(a['time']?.toString());
+
+        final timeB = _convertTimeToMinutes(b['time']?.toString());
+
+        return timeA.compareTo(timeB);
+      });
+
+      // ======================================================================
+      // UPDATE UI
+      // ======================================================================
+
+      if (mounted) {
+        setState(() {
+          _routines.clear();
+
+          _routines.addAll(parsedRoutines);
+
+          _isLoading = false;
+
+          _errorMessage = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading medicine dashboard: $e');
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    }
+  }
+
+  // ==========================================================================
+  // FORMAT TIME
+  // ==========================================================================
+
+  String _formatTime(String? timeStr) {
+    if (timeStr == null || timeStr.trim().isEmpty) {
+      return '08:30 AM';
+    }
+
+    final trimmed = timeStr.trim();
+
+    // Already formatted
+    if (trimmed.toUpperCase().contains('AM') ||
+        trimmed.toUpperCase().contains('PM')) {
+      return trimmed;
+    }
+
+    final parts = trimmed.split(':');
+
+    if (parts.length >= 2) {
+      final hour = int.tryParse(parts[0]) ?? 8;
+
+      final minute = int.tryParse(parts[1]) ?? 0;
+
+      final period = hour >= 12 ? 'PM' : 'AM';
+
+      final hour12 = hour % 12 == 0 ? 12 : hour % 12;
+
+      return '${hour12.toString().padLeft(2, '0')}:'
+          '${minute.toString().padLeft(2, '0')} '
+          '$period';
+    }
+
+    return trimmed;
+  }
+
+  // ==========================================================================
+  // CONVERT TIME TO MINUTES
+  // ==========================================================================
+
+  int _convertTimeToMinutes(String? time) {
+    if (time == null || time.trim().isEmpty) {
+      return 0;
+    }
+
+    final value = time.trim().toUpperCase();
+
+    try {
+      final isPM = value.contains('PM');
+
+      final cleanValue = value.replaceAll('AM', '').replaceAll('PM', '').trim();
+
+      final parts = cleanValue.split(':');
+
+      if (parts.length < 2) {
+        return 0;
+      }
+
+      int hour = int.tryParse(parts[0]) ?? 0;
+
+      final minute = int.tryParse(parts[1]) ?? 0;
+
+      if (isPM && hour != 12) {
+        hour += 12;
+      }
+
+      if (!isPM && value.contains('AM') && hour == 12) {
+        hour = 0;
+      }
+
+      return hour * 60 + minute;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  // ==========================================================================
+  // GET COLOR
+  // ==========================================================================
+
+  int _getColorForPeriod(String period, String timeStr) {
+    final p = period.toUpperCase();
+
+    if (p.contains('MORN')) {
+      return 0xFF4CAF50;
+    }
+
+    if (p.contains('AFTER') || p.contains('NOON')) {
+      return 0xFF2196F3;
+    }
+
+    if (p.contains('NIGHT') || p.contains('EVE')) {
+      return 0xFF9C27B0;
+    }
+
+    return 0xFF4CAF50;
+  }
+
+  // ==========================================================================
+  // GET TAG
+  // ==========================================================================
+
+  String _getTagForPeriod(String period, String timeStr) {
+    final p = period.toUpperCase();
+
+    if (p.contains('MORN')) {
+      return 'Morning';
+    }
+
+    if (p.contains('AFTER') || p.contains('NOON')) {
+      return 'Afternoon';
+    }
+
+    if (p.contains('NIGHT') || p.contains('EVE')) {
+      return 'Night';
+    }
+
+    return 'Daily';
+  }
+
+  // ==========================================================================
+  // CLICK MEDICINE
+  // ==========================================================================
+
+  Future<void> _onMedicineClicked(Map<String, dynamic> routine) async {
+    debugPrint('=================================');
+
+    debugPrint('Opening Edit Medicine Dialog');
+
+    debugPrint('User ID: ${routine['userId']}');
+
+    debugPrint('Medicine ID: ${routine['medicineId']}');
+
+    debugPrint('Schedule ID: ${routine['scheduleId']}');
+
+    debugPrint('=================================');
+
+    // ------------------------------------------------------------------------
+    // Important validation
+    // ------------------------------------------------------------------------
+
+    if (routine['medicineId'] == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Medicine ID is missing')));
+
+      return;
+    }
+
+    if (routine['scheduleId'] == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Schedule ID is missing')));
+
+      return;
+    }
+
+    // ------------------------------------------------------------------------
+    // Open edit dialog
+    // ------------------------------------------------------------------------
+
+    final result = await showDialog<bool>(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 28.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 44,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Theme.of(context).primaryColor, width: 2),
-                ),
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/images/user_avatar.png',
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                widget.clientName,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Age: ${widget.clientAge} years',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 24),
-              ListTile(
-                leading: const Icon(Icons.notifications_active_outlined, color: Colors.blueAccent),
-                title: const Text('Notifications'),
-                subtitle: const Text('Sound & alerts enabled'),
-                trailing: Switch(value: true, onChanged: (_) {}),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
+        return EditMedicineDialog(routine: routine);
       },
     );
+
+    // ------------------------------------------------------------------------
+    // Reload after successful update
+    // ------------------------------------------------------------------------
+
+    if (result == true && mounted) {
+      debugPrint('Medicine updated successfully.');
+
+      debugPrint('Reloading Client Dashboard...');
+
+      // IMPORTANT:
+      //
+      // Do not manually modify _routines here.
+      //
+      // Get the latest data from Spring Boot instead.
+      await _loadMedicines();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Medicine routine updated')),
+        );
+      }
+    }
   }
 
+  // ==========================================================================
+  // TOGGLE TAKEN
+  // ==========================================================================
 
-  // the new medicine
-  void _showAddMedicineDialog() {
-    final nameCtrl = TextEditingController();
-    final timeCtrl = TextEditingController();
-    final dosageCtrl = TextEditingController();
+  void _toggleTaken(int index) {
+    if (index < 0 || index >= _routines.length) {
+      return;
+    }
 
-    showDialog(
+    setState(() {
+      final routine = _routines[index];
+
+      final current = routine['taken'] == true;
+
+      final updated = !current;
+
+      routine['taken'] = updated;
+
+      final key =
+          routine['routineKey']?.toString() ??
+          '${routine['medicineId']}_${routine['scheduleId']}_${routine['time']}';
+
+      if (updated) {
+        _takenKeys.add(key);
+      } else {
+        _takenKeys.remove(key);
+      }
+    });
+  }
+
+  // ==========================================================================
+  // ADD MEDICINE
+  // ==========================================================================
+
+  Future<void> _showAddMedicineDialog() async {
+    final uid = _currentUserId;
+
+    if (uid == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('User ID not available')));
+
+      return;
+    }
+
+    // ------------------------------------------------------------------------
+    // Open Add Medicine Dialog
+    // ------------------------------------------------------------------------
+
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Row(
+      builder: (ctx) {
+        return AddMedicineDialog(userId: uid);
+      },
+    );
+
+    // ------------------------------------------------------------------------
+    // User cancelled
+    // ------------------------------------------------------------------------
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    // ------------------------------------------------------------------------
+    // Reload from backend
+    //
+    // Do NOT manually add the medicine to _routines.
+    //
+    // Otherwise the medicine can appear twice.
+    // ------------------------------------------------------------------------
+
+    await _loadMedicines();
+
+    if (!mounted) {
+      return;
+    }
+
+    final medName = (result['medicineName'] ?? result['name'] ?? 'Medicine')
+        .toString();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
           children: [
-            Icon(Icons.add_circle_outline, color: Colors.blueAccent),
-            SizedBox(width: 8),
-            Text('Add Medicine Routine'),
+            const Icon(
+              Icons.check_circle_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+
+            const SizedBox(width: 10),
+
+            Expanded(child: Text('Added "$medName" to routine schedule')),
           ],
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Medicine Name',
-                  hintText: 'e.g. Aspirin 100mg',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: dosageCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Dosage / Instructions',
-                  hintText: 'e.g. Take 1 tablet with water',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: timeCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Time',
-                  hintText: 'e.g. 08:00 AM',
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              if (nameCtrl.text.trim().isNotEmpty) {
-                setState(() {
-                  _routines.add({
-                    'name': nameCtrl.text.trim(),
-                    'instruction': dosageCtrl.text.trim().isEmpty
-                        ? 'Take as prescribed'
-                        : dosageCtrl.text.trim(),
-                    'time': timeCtrl.text.trim().isEmpty ? '12:00 PM' : timeCtrl.text.trim(),
-                    'taken': false,
-                    'color': 0xFF2196F3,
-                    'tag': 'Daily',
-                  });
-                });
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
+
+        backgroundColor: const Color(0xFF0077B6),
+
+        behavior: SnackBarBehavior.floating,
+
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+
+        duration: const Duration(seconds: 3),
       ),
     );
   }
+
+  // ==========================================================================
+  // OPEN PROFILE
+  // ==========================================================================
+
+  Future<void> _openProfile() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) {
+          return ProfilePage(
+            name: widget.clientName,
+            email: widget.clientEmail,
+            password: widget.clientPassword,
+          );
+        },
+      ),
+    );
+
+    // Reload after returning from profile
+    if (mounted) {
+      await _loadMedicines();
+    }
+  }
+
+  // ==========================================================================
+  // BUILD
+  // ==========================================================================
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    final takenCount = _routines.where((r) => r['taken'] == true).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
+
+      // ======================================================================
+      // APP BAR
+      // ======================================================================
       appBar: AppBar(
         backgroundColor: Colors.white,
+
         elevation: 1,
-        centerTitle: false,
+
         automaticallyImplyLeading: false,
-        // Left side of AppBar: User Name
+
         title: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: primaryColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.person, color: primaryColor, size: 20),
+            CircleAvatar(
+              backgroundColor: primaryColor.withValues(alpha: 0.1),
+
+              child: Icon(Icons.person, color: primaryColor),
             ),
+
             const SizedBox(width: 10),
+
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
                   'Welcome,',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
                 ),
+
                 Text(
                   widget.clientName,
                   style: TextStyle(
@@ -243,284 +927,472 @@ class _ClientDashboardState extends State<ClientDashboard> {
             ),
           ],
         ),
-        // Right side of AppBar: Button having image given
+
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 14.0),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: _showProfileModal,
-                borderRadius: BorderRadius.circular(24),
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: primaryColor.withValues(alpha: 0.4),
-                      width: 2,
-                    ),
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/images/user_avatar.png',
-                      width: 36,
-                      height: 36,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => CircleAvatar(
-                        radius: 18,
-                        backgroundColor: primaryColor.withValues(alpha: 0.15),
-                        child: Icon(Icons.person, color: primaryColor, size: 22),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          IconButton(
+            onPressed: _openProfile,
+
+            icon: Icon(Icons.account_circle, color: primaryColor, size: 32),
           ),
+
+          const SizedBox(width: 8),
         ],
       ),
+
+      // ======================================================================
+      // BODY
+      // ======================================================================
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 90),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Summary Banner Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      primaryColor,
-                      primaryColor.withValues(alpha: 0.8),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+        child: RefreshIndicator(
+          onRefresh: _loadMedicines,
+
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 100),
+
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+
+              children: [
+                // ==============================================================
+                // WELCOME CARD
+                // ==============================================================
+                Container(
+                  width: double.infinity,
+
+                  padding: const EdgeInsets.all(20),
+
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withValues(alpha: 0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Hello, ${widget.clientName}!',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Age: ${widget.clientAge} yrs  •  Stay healthy & on time',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              '${_routines.where((r) => r['taken'] == true).length}/${_routines.length} Medicines taken today',
+
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+
+                          children: [
+                            Text(
+                              'Hello, ${widget.clientName}!',
+
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 12,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            Text(
+                              'Age: ${widget.clientAge} yrs',
+
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            Text(
+                              '$takenCount/${_routines.length} Medicines taken today',
+
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                      ),
+
+                      const Icon(
+                        Icons.medication_rounded,
+                        color: Colors.white,
+                        size: 45,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // ==============================================================
+                // TITLE
+                // ==============================================================
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+                  children: [
+                    Text(
+                      "Today's Medicine Routine",
+
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blueGrey.shade800,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.alarm_on_rounded,
-                        color: Colors.white,
-                        size: 34,
+
+                    Text(
+                      '${_routines.length} Doses',
+
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: primaryColor,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
-              ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 12),
 
-              // Today's Routine Title
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Today's Medicine Routine",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blueGrey.shade800,
-                    ),
-                  ),
-                  Text(
-                    '${_routines.length} Doses',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: primaryColor,
-                    ),
-                  ),
-                ],
-              ),
+                // ==============================================================
+                // ERROR
+                // ==============================================================
+                if (_errorMessage != null)
+                  Container(
+                    width: double.infinity,
 
-              const SizedBox(height: 12),
+                    padding: const EdgeInsets.all(12),
 
-              // Routine List
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _routines.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final routine = _routines[index];
-                  final isTaken = routine['taken'] as bool;
+                    margin: const EdgeInsets.only(bottom: 12),
 
-                  return Container(
-                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isTaken ? Colors.green.shade200 : Colors.grey.shade200,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                      color: Colors.red.shade50,
+
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red.shade700),
+
+                        const SizedBox(width: 8),
+
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: TextStyle(color: Colors.red.shade700),
+                          ),
+                        ),
+
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              _errorMessage = null;
+                            });
+                          },
+                          icon: const Icon(Icons.close),
                         ),
                       ],
                     ),
-                    child: Row(
+                  ),
+
+                // ==============================================================
+                // LOADING
+                // ==============================================================
+                if (_isLoading && _routines.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                // ==============================================================
+                // EMPTY
+                // ==============================================================
+                else if (_routines.isEmpty)
+                  Container(
+                    width: double.infinity,
+
+                    padding: const EdgeInsets.all(30),
+
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+
+                    child: Column(
                       children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Color(routine['color'] as int).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.medication,
-                            color: Color(routine['color'] as int),
-                            size: 24,
+                        Icon(
+                          Icons.medication_outlined,
+                          size: 50,
+                          color: Colors.grey.shade400,
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        const Text(
+                          'No medicines scheduled',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+
+                        const SizedBox(height: 6),
+
+                        Text(
+                          'Tap "Add Medicine" to create your routine.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                  )
+                // ==============================================================
+                // MEDICINE LIST
+                // ==============================================================
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+
+                    physics: const NeverScrollableScrollPhysics(),
+
+                    itemCount: _routines.length,
+
+                    separatorBuilder: (context, index) {
+                      return const SizedBox(height: 12);
+                    },
+
+                    itemBuilder: (context, index) {
+                      final routine = _routines[index];
+
+                      final isTaken = routine['taken'] == true;
+
+                      final colorValue = routine['color'] is int
+                          ? routine['color'] as int
+                          : 0xFF4CAF50;
+
+                      final medicineName =
+                          routine['name']?.toString() ?? 'Medicine';
+
+                      final instruction =
+                          routine['instruction']?.toString() ??
+                          'Take as prescribed';
+
+                      final time = routine['time']?.toString() ?? '08:30 AM';
+
+                      return InkWell(
+                        // ======================================================
+                        // CLICK MEDICINE
+                        // ======================================================
+                        onTap: () {
+                          _onMedicineClicked(routine);
+                        },
+
+                        borderRadius: BorderRadius.circular(16),
+
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+
+                            borderRadius: BorderRadius.circular(16),
+
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+
+                          child: Row(
                             children: [
-                              Text(
-                                routine['name'] as String,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                  color: isTaken ? Colors.grey : Colors.blueGrey.shade900,
-                                  decoration: isTaken ? TextDecoration.lineThrough : null,
+                              // =================================================
+                              // MEDICINE ICON
+                              // =================================================
+                              Container(
+                                width: 45,
+                                height: 45,
+
+                                decoration: BoxDecoration(
+                                  color: Color(
+                                    colorValue,
+                                  ).withValues(alpha: 0.12),
+
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+
+                                child: Icon(
+                                  Icons.medication,
+                                  color: Color(colorValue),
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                routine['instruction'] as String,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade600,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.access_time_rounded,
-                                    size: 13,
-                                    color: Colors.blueGrey.shade400,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    routine['time'] as String,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.blueGrey.shade600,
+
+                              const SizedBox(width: 14),
+
+                              // =================================================
+                              // DETAILS
+                              // =================================================
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+
+                                  children: [
+                                    Text(
+                                      medicineName,
+
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        decoration: isTaken
+                                            ? TextDecoration.lineThrough
+                                            : null,
+                                      ),
                                     ),
-                                  ),
-                                ],
+
+                                    const SizedBox(height: 5),
+
+                                    Text(
+                                      instruction,
+
+                                      maxLines: 2,
+
+                                      overflow: TextOverflow.ellipsis,
+
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 5),
+
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.access_time, size: 14),
+
+                                        const SizedBox(width: 4),
+
+                                        Text(
+                                          time,
+
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+
+                                        const SizedBox(width: 10),
+
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+
+                                          decoration: BoxDecoration(
+                                            color: Color(
+                                              colorValue,
+                                            ).withValues(alpha: 0.10),
+
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                          ),
+
+                                          child: Text(
+                                            routine['tag']?.toString() ??
+                                                'Daily',
+
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(colorValue),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // =================================================
+                              // EDIT BUTTON
+                              // =================================================
+                              IconButton(
+                                key: Key('edit_routine_button_$index'),
+
+                                onPressed: () {
+                                  _onMedicineClicked(routine);
+                                },
+
+                                tooltip: 'Edit Medicine & Schedule',
+
+                                icon: Icon(
+                                  Icons.edit_outlined,
+                                  color: Colors.blueGrey.shade400,
+                                  size: 20,
+                                ),
+                              ),
+
+                              // =================================================
+                              // TAKEN BUTTON
+                              // =================================================
+                              IconButton(
+                                onPressed: () {
+                                  _toggleTaken(index);
+                                },
+
+                                tooltip: isTaken
+                                    ? 'Mark as not taken'
+                                    : 'Mark as taken',
+
+                                icon: Icon(
+                                  isTaken
+                                      ? Icons.check_circle
+                                      : Icons.radio_button_unchecked,
+
+                                  color: isTaken ? Colors.green : Colors.grey,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        IconButton(
-                          icon: Icon(
-                            isTaken ? Icons.check_circle : Icons.radio_button_unchecked,
-                            color: isTaken ? Colors.green : Colors.grey.shade400,
-                            size: 28,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              routine['taken'] = !isTaken;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ],
+                      );
+                    },
+                  ),
+              ],
+            ),
           ),
         ),
       ),
-      // Raised button on Right bottom corner
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: ElevatedButton.icon(
+
+      // ======================================================================
+      // ADD MEDICINE BUTTON
+      // ======================================================================
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddMedicineDialog,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
-          elevation: 6,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        icon: const Icon(Icons.add, size: 22),
-        label: const Text(
-          'Add Medicine',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+
+        backgroundColor: primaryColor,
+
+        foregroundColor: Colors.white,
+
+        icon: const Icon(Icons.add),
+
+        label: const Text('Add Medicine'),
       ),
     );
+  }
+}
+
+// ============================================================================
+// MEDICINE DETAILS DIALOG
+//
+// Kept for compatibility with any existing code that opens this class.
+// ============================================================================
+
+class MedicineDetailsDialog extends StatelessWidget {
+  final Map<String, dynamic> routine;
+
+  const MedicineDetailsDialog({super.key, required this.routine});
+
+  @override
+  Widget build(BuildContext context) {
+    return EditMedicineDialog(routine: routine);
   }
 }
