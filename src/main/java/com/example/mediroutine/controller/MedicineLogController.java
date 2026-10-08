@@ -102,4 +102,12 @@ public class MedicineLogController {
                 log.getStatus()
         );
     }
+
+//    @GetMapping("/logsSchedule/{scheduleId}")
+//    public ResponseEntity<List<MedicineLog>> getLogsBySchedule(@PathVariable("scheduleId")  Long scheduleId)
+//    {
+//        List<MedicineLog> logsofSchedule = medicineLogService.getLogsOfSchedule(scheduleId);
+//
+//        return ResponseEntity.ok(logsofSchedule);
+//    }
 }

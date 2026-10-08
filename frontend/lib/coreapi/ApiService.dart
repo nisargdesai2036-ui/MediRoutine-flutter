@@ -9,7 +9,7 @@ class ApiService {
   // Web, iOS Simulator, and Desktop use localhost
   static String get baseUrl {
     if (kIsWeb) {
-      return "http://localhost:8080";
+      return dotenv.env['API_BASE_URL'];
     }
     try {
       if (Platform.isAndroid) {

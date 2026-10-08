@@ -1,7 +1,9 @@
 package com.example.mediroutine.controller;
 
+import com.example.mediroutine.dto.AddMedicineRequest;
 import com.example.mediroutine.dto.MedicineRequest;
 import com.example.mediroutine.dto.MedicineResponse;
+import com.example.mediroutine.dto.UpdateMedicineRequest;
 import com.example.mediroutine.entity.Medicine;
 import com.example.mediroutine.entity.User;
 import com.example.mediroutine.service.MedicineService;
@@ -25,19 +27,33 @@ public class MedicineController {
         this.userService = userService;
     }
 
-    @PostMapping
-    public ResponseEntity<MedicineResponse> createMedicine(@RequestBody MedicineRequest request) {
-        return userService.getUserById(request.getUserId())
-                .map(user -> {
-                    Medicine medicine = new Medicine();
-                    medicine.setName(request.getName());
-                    medicine.setDescription(request.getDescription());
-                    medicine.setUser(user);
+    @PostMapping("/add")
+    public ResponseEntity<MedicineResponse> createMedicine(@RequestBody AddMedicineRequest request) {
 
-                    Medicine savedMedicine = medicineService.saveMedicine(medicine);
-                    return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(savedMedicine));
+        Long userId = request.getMedicine().getUserId();
+        return userService.getUserById(userId)
+                .map(user -> {
+
+                    Medicine savedMedicine =
+                            medicineService.addMedicineWithSchedule(
+                                    request,
+                                    user
+                            );
+                    return ResponseEntity
+                            .status(HttpStatus.CREATED)
+                            .body(toResponse(savedMedicine));
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    private MedicineResponse toResponse(Medicine medicine) {
+
+        return new MedicineResponse(
+                medicine.getId(),
+                medicine.getName(),
+                medicine.getDescription(),
+                medicine.getUser().getId()
+        );
     }
 
     @GetMapping
@@ -55,6 +71,7 @@ public class MedicineController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    // user for getting list of the medicines
     @GetMapping("/user/{userId}")
     public List<MedicineResponse> getMedicinesByUserId(@PathVariable Long userId) {
         return medicineService.getMedicinesByUserId(userId)
@@ -80,6 +97,27 @@ public class MedicineController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/update/{id}")
+    public ResponseEntity<MedicineResponse> updateMedicinePartial(
+            @PathVariable Long id,
+            @RequestBody UpdateMedicineRequest request
+    ) {
+
+        try {
+
+            Medicine updatedMedicine =
+                    medicineService.updateMedicinePartial(id, request);
+
+            return ResponseEntity.ok(
+                    toResponse(updatedMedicine)
+            );
+
+        } catch (RuntimeException e) {
+
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     private ResponseEntity<MedicineResponse> updateMedicineFromRequest(Medicine medicine, MedicineRequest request) {
         if (medicine.getUser() == null || !medicine.getUser().getId().equals(request.getUserId())) {
             User user = userService.getUserById(request.getUserId()).orElse(null);
@@ -96,12 +134,7 @@ public class MedicineController {
         return ResponseEntity.ok(toResponse(savedMedicine));
     }
 
-    private MedicineResponse toResponse(Medicine medicine) {
-        return new MedicineResponse(
-                medicine.getId(),
-                medicine.getName(),
-                medicine.getDescription(),
-                medicine.getUser().getId()
-        );
-    }
+
+
+
 }

@@ -2,6 +2,7 @@ package com.example.mediroutine.controller;
 
 import com.example.mediroutine.dto.MedicineScheduleRequest;
 import com.example.mediroutine.dto.MedicineScheduleResponse;
+import com.example.mediroutine.dto.UpdateMedicineScheduleRequest;
 import com.example.mediroutine.entity.Medicine;
 import com.example.mediroutine.entity.MedicineSchedule;
 import com.example.mediroutine.service.MedicineScheduleService;
@@ -47,6 +48,18 @@ public class MedicineScheduleController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/user/{userId}")
+    public List<MedicineScheduleResponse> getSchedulesByUserId(
+            @PathVariable Long userId
+    ) {
+
+        return medicineScheduleService
+                .getSchedulesByUserId(userId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     @GetMapping("/medicine/{medicineId}")
     public List<MedicineScheduleResponse> getSchedulesByMedicineId(@PathVariable Long medicineId) {
         return medicineScheduleService.getSchedulesByMedicineId(medicineId)
@@ -71,7 +84,7 @@ public class MedicineScheduleController {
             return ResponseEntity.notFound().build();
         }
 
-        medicineScheduleService.deleteScheduleById(id);
+        medicineScheduleService.deleteMedicineScheduleById(id);
         return ResponseEntity.noContent().build();
     }
 
@@ -103,6 +116,53 @@ public class MedicineScheduleController {
         schedule.setDaysOfWeek(request.getDaysOfWeek());
         schedule.setStartDate(request.getStartDate());
         schedule.setEndDate(request.getEndDate());
+    }
+
+    @PatchMapping("/update/{id}")
+    public ResponseEntity<MedicineScheduleResponse> updateSchedulePartial(
+            @PathVariable Long id,
+            @RequestBody UpdateMedicineScheduleRequest request
+    ) {
+
+        try {
+
+            MedicineSchedule existingSchedule =
+                    medicineScheduleService
+                            .getScheduleById(id)
+                            .orElseThrow(() ->
+                                    new RuntimeException("Schedule not found")
+                            );
+
+            Medicine medicine = existingSchedule.getMedicine();
+
+            /*
+             * If medicineId was supplied in the PATCH body,
+             * find that medicine.
+             */
+            if (request.getMedicineId() != null) {
+
+                medicine = medicineService
+                        .getMedicineById(request.getMedicineId())
+                        .orElseThrow(() ->
+                                new RuntimeException("Medicine not found")
+                        );
+            }
+
+            MedicineSchedule updatedSchedule =
+                    medicineScheduleService.updateSchedulePartial(
+                            id,
+                            request,
+                            medicine
+                    );
+
+            return ResponseEntity.ok(
+                    toResponse(updatedSchedule)
+            );
+
+        } catch (RuntimeException e) {
+
+            return ResponseEntity.notFound().build();
+        }
     }
 
     private MedicineScheduleResponse toResponse(MedicineSchedule schedule) {
