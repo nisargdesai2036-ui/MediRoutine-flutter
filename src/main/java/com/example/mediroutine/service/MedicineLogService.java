@@ -37,7 +37,7 @@ public class MedicineLogService {
     }
 
     public List<MedicineLog> getLogsByScheduleId(Long scheduleId) {
-        return medicineLogRepository.findByScheduleId(scheduleId);
+        return medicineLogRepository.findBySchedule_IdOrderByScheduledDateDescScheduleTimeDesc(scheduleId);
     }
 
     public MedicineLog saveLog(MedicineLog log) {
@@ -251,5 +251,10 @@ public class MedicineLogService {
                 medicineLogRepository.save(log);
             }
         }
+    }
+
+    public List<MedicineLog> getLogsOfSchedule(Long scheduleId)
+    {
+        return medicineLogRepository.findBySchedule_IdOrderByScheduledDateDescScheduleTimeDesc(scheduleId);
     }
 }

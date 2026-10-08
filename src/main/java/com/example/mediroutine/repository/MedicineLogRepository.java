@@ -13,6 +13,7 @@ import java.util.List;
 public interface MedicineLogRepository extends JpaRepository<MedicineLog, Long> {
 
     List<MedicineLog> findByScheduleId(Long scheduleId);
+    List<MedicineLog> findBySchedule_IdOrderByScheduledDateDescScheduleTimeDesc(Long scheduleId);
 
 
     // If the log exist or not
