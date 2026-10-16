@@ -3,12 +3,9 @@ import 'package:flutter/material.dart';
 import 'profile_page.dart';
 import '../dialogs/add_medicine_dialog.dart';
 import '../dialogs/edit_medicine_dialog.dart';
+import '../dialogs/logs_data_dialog.dart';
 import '../Sessions/UserSession.dart';
 import '../coreapi/ApiService.dart';
-
-// ============================================================================
-// CLIENT DASHBOARD
-// ============================================================================
 
 class ClientDashboard extends StatefulWidget {
   final int? userId;
@@ -30,44 +27,21 @@ class ClientDashboard extends StatefulWidget {
   State<ClientDashboard> createState() => _ClientDashboardState();
 }
 
-// ============================================================================
-// CLIENT DASHBOARD STATE
-// ============================================================================
-
 class _ClientDashboardState extends State<ClientDashboard> {
-  // ==========================================================================
-  // ROUTINES
-  // ==========================================================================
-
   final List<Map<String, dynamic>> _routines = [];
 
   bool _isLoading = false;
-
   String? _errorMessage;
 
-  // Stores which medicine has been marked as taken
   final Set<String> _takenKeys = {};
 
-  // ==========================================================================
-  // CURRENT USER ID
-  // ==========================================================================
-
   int? get _currentUserId => widget.userId ?? UserSession.userid;
-
-  // ==========================================================================
-  // INIT STATE
-  // ==========================================================================
 
   @override
   void initState() {
     super.initState();
-
     _loadMedicines();
   }
-
-  // ==========================================================================
-  // SAFE INTEGER CONVERSION
-  // ==========================================================================
 
   int? _toInt(dynamic value) {
     if (value == null) {
@@ -81,10 +55,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
     return int.tryParse(value.toString());
   }
 
-  // ==========================================================================
-  // SAFE MAP CONVERSION
-  // ==========================================================================
-
   Map<String, dynamic>? _toMap(dynamic value) {
     if (value is Map<String, dynamic>) {
       return value;
@@ -97,15 +67,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
     return null;
   }
 
-  // ==========================================================================
-  // LOAD MEDICINES
-  // ==========================================================================
-
   Future<void> _loadMedicines() async {
-    // ------------------------------------------------------------------------
-    // Try to resolve user ID using email if ID is not available
-    // ------------------------------------------------------------------------
-
     if (_currentUserId == null &&
         (widget.clientEmail.isNotEmpty || UserSession.email != null)) {
       final emailToLookup = widget.clientEmail.isNotEmpty
@@ -131,10 +93,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
       }
     }
 
-    // ------------------------------------------------------------------------
-    // Get user ID
-    // ------------------------------------------------------------------------
-
     final userId = _currentUserId;
 
     if (userId == null) {
@@ -148,10 +106,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
       return;
     }
 
-    // ------------------------------------------------------------------------
-    // Start loading
-    // ------------------------------------------------------------------------
-
     if (mounted) {
       setState(() {
         _isLoading = true;
@@ -160,9 +114,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
     }
 
     try {
-      // ======================================================================
-      // 1. GET MEDICINES
-      // ======================================================================
+      // ============================================================
+      // GET MEDICINES
+      // ============================================================
 
       List<dynamic> medicineList = [];
 
@@ -173,24 +127,17 @@ class _ClientDashboardState extends State<ClientDashboard> {
           medicineList = response;
         }
 
-        debugPrint('Medicine API returned ${medicineList.length} medicines');
+        debugPrint(
+          'Medicine API returned '
+          '${medicineList.length} medicines',
+        );
       } catch (e) {
         debugPrint('Error fetching medicines: $e');
       }
 
-      // ======================================================================
-      // 2. CREATE MEDICINE MAP
-      //
-      // Key:
-      //     medicine.id
-      //
-      // Value:
-      //     complete medicine response
-      //
-      // This allows us to later connect:
-      //
-      // schedule.medicineId -> medicine.id
-      // ======================================================================
+      // ============================================================
+      // CREATE MEDICINE MAP
+      // ============================================================
 
       final Map<int, Map<String, dynamic>> medicinesMap = {};
 
@@ -210,9 +157,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
         medicinesMap[medicineId] = medicineMap;
       }
 
-      // ======================================================================
-      // 3. GET SCHEDULES
-      // ======================================================================
+      // ============================================================
+      // GET SCHEDULES
+      // ============================================================
 
       List<dynamic> scheduleList = [];
 
@@ -223,20 +170,23 @@ class _ClientDashboardState extends State<ClientDashboard> {
           scheduleList = response;
         }
 
-        debugPrint('Schedule API returned ${scheduleList.length} schedules');
+        debugPrint(
+          'Schedule API returned '
+          '${scheduleList.length} schedules',
+        );
       } catch (e) {
         debugPrint('Error fetching schedules: $e');
       }
 
-      // ======================================================================
-      // 4. PARSED ROUTINES
-      // ======================================================================
+      // ============================================================
+      // PARSED ROUTINES
+      // ============================================================
 
       final List<Map<String, dynamic>> parsedRoutines = [];
 
-      // ======================================================================
-      // 5. PARSE SCHEDULES
-      // ======================================================================
+      // ============================================================
+      // PARSE SCHEDULES
+      // ============================================================
 
       for (final entry in scheduleList) {
         final scheduleMap = _toMap(entry);
@@ -245,26 +195,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
           continue;
         }
 
-        // --------------------------------------------------------------------
-        // SCHEDULE ID
-        //
-        // IMPORTANT:
-        // Never use schedule ID as medicine ID.
-        // --------------------------------------------------------------------
-
         final scheduleId = _toInt(scheduleMap['id']);
-
-        // --------------------------------------------------------------------
-        // MEDICINE ID
-        //
-        // Expected:
-        //
-        // scheduleMap['medicineId']
-        //
-        // OR
-        //
-        // scheduleMap['medicine']['id']
-        // --------------------------------------------------------------------
 
         int? medicineId = _toInt(scheduleMap['medicineId']);
 
@@ -276,44 +207,31 @@ class _ClientDashboardState extends State<ClientDashboard> {
           }
         }
 
-        // --------------------------------------------------------------------
-        // If medicine ID is missing, we cannot safely connect the schedule
-        // to a medicine.
-        // --------------------------------------------------------------------
-
         if (medicineId == null) {
           debugPrint(
-            'Skipping schedule because medicineId is missing: $scheduleMap',
+            'Skipping schedule because '
+            'medicineId is missing: $scheduleMap',
           );
 
           continue;
         }
 
-        // --------------------------------------------------------------------
-        // FIND MEDICINE
-        // --------------------------------------------------------------------
-
         final medicineMap = medicinesMap[medicineId];
 
         if (medicineMap == null) {
-          debugPrint('Medicine $medicineId not found for schedule $scheduleId');
+          debugPrint(
+            'Medicine $medicineId not found '
+            'for schedule $scheduleId',
+          );
 
           continue;
         }
-
-        // --------------------------------------------------------------------
-        // MEDICINE INFORMATION
-        // --------------------------------------------------------------------
 
         final medicineName =
             (medicineMap['name'] ?? medicineMap['medicineName'] ?? 'Medicine')
                 .toString();
 
         final medicineDescription = medicineMap['description']?.toString();
-
-        // --------------------------------------------------------------------
-        // SCHEDULE INFORMATION
-        // --------------------------------------------------------------------
 
         final dosage = scheduleMap['dosage']?.toString();
 
@@ -336,52 +254,30 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
         final endDate = scheduleMap['endDate']?.toString();
 
-        // --------------------------------------------------------------------
-        // INSTRUCTION
-        // --------------------------------------------------------------------
-
         String instruction = 'Take as prescribed';
 
         if (dosage != null && dosage.trim().isNotEmpty) {
           instruction = 'Take $dosage';
         }
 
-        // --------------------------------------------------------------------
-        // ROUTINE KEY
-        //
-        // Schedule ID is included so two schedules for the same medicine
-        // can exist independently.
-        // --------------------------------------------------------------------
-
         final routineKey = '${medicineId}_${scheduleId ?? ''}_$timeStr';
-
-        // --------------------------------------------------------------------
-        // TAKEN
-        // --------------------------------------------------------------------
 
         final isTaken = _takenKeys.contains(routineKey);
 
-        // --------------------------------------------------------------------
-        // ADD ROUTINE
-        // --------------------------------------------------------------------
-
         parsedRoutines.add({
-          // User
           'userId': userId,
 
-          // IDs
           'id': medicineId,
           'medicineId': medicineId,
           'scheduleId': scheduleId,
 
-          // Medicine
           'name': medicineName,
           'description': medicineDescription,
 
-          // Schedule
           'dosage': dosage,
           'quantity': quantity,
           'unit': unit,
+
           'time': timeStr,
           'period': periodStr,
           'frequencyType': frequencyType,
@@ -390,26 +286,19 @@ class _ClientDashboardState extends State<ClientDashboard> {
           'startDate': startDate,
           'endDate': endDate,
 
-          // UI
           'instruction': instruction,
           'taken': isTaken,
           'routineKey': routineKey,
+
           'color': _getColorForPeriod(periodStr, timeStr),
+
           'tag': _getTagForPeriod(periodStr, timeStr),
         });
       }
 
-      // ======================================================================
+      // ============================================================
       // FALLBACK
-      //
-      // If schedules API returned nothing, check if medicine API itself
-      // contains schedules.
-      //
-      // This is only a fallback. We still prefer:
-      //
-      // /api/medicines/user/{userId}
-      // /api/schedules/user/{userId}
-      // ======================================================================
+      // ============================================================
 
       if (parsedRoutines.isEmpty && medicineList.isNotEmpty) {
         for (final entry in medicineList) {
@@ -431,7 +320,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
           final medicineDescription = medicineMap['description']?.toString();
 
-          // Try possible schedule field names.
           dynamic schedules = medicineMap['schedules'];
 
           if (schedules is! List) {
@@ -510,9 +398,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
         }
       }
 
-      // ======================================================================
-      // SORT ROUTINES BY TIME
-      // ======================================================================
+      // ============================================================
+      // SORT ROUTINES
+      // ============================================================
 
       parsedRoutines.sort((a, b) {
         final timeA = _convertTimeToMinutes(a['time']?.toString());
@@ -522,18 +410,16 @@ class _ClientDashboardState extends State<ClientDashboard> {
         return timeA.compareTo(timeB);
       });
 
-      // ======================================================================
+      // ============================================================
       // UPDATE UI
-      // ======================================================================
+      // ============================================================
 
       if (mounted) {
         setState(() {
           _routines.clear();
-
           _routines.addAll(parsedRoutines);
 
           _isLoading = false;
-
           _errorMessage = null;
         });
       }
@@ -550,9 +436,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
     }
   }
 
-  // ==========================================================================
+  // ============================================================
   // FORMAT TIME
-  // ==========================================================================
+  // ============================================================
 
   String _formatTime(String? timeStr) {
     if (timeStr == null || timeStr.trim().isEmpty) {
@@ -561,7 +447,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
     final trimmed = timeStr.trim();
 
-    // Already formatted
     if (trimmed.toUpperCase().contains('AM') ||
         trimmed.toUpperCase().contains('PM')) {
       return trimmed;
@@ -586,9 +471,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
     return trimmed;
   }
 
-  // ==========================================================================
-  // CONVERT TIME TO MINUTES
-  // ==========================================================================
+  // ============================================================
+  // CONVERT TIME
+  // ============================================================
 
   int _convertTimeToMinutes(String? time) {
     if (time == null || time.trim().isEmpty) {
@@ -626,9 +511,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
     }
   }
 
-  // ==========================================================================
-  // GET COLOR
-  // ==========================================================================
+  // ============================================================
+  // COLOR
+  // ============================================================
 
   int _getColorForPeriod(String period, String timeStr) {
     final p = period.toUpperCase();
@@ -648,9 +533,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
     return 0xFF4CAF50;
   }
 
-  // ==========================================================================
-  // GET TAG
-  // ==========================================================================
+  // ============================================================
+  // TAG
+  // ============================================================
 
   String _getTagForPeriod(String period, String timeStr) {
     final p = period.toUpperCase();
@@ -670,27 +555,11 @@ class _ClientDashboardState extends State<ClientDashboard> {
     return 'Daily';
   }
 
-  // ==========================================================================
-  // CLICK MEDICINE
-  // ==========================================================================
+  // ============================================================
+  // EDIT MEDICINE
+  // ============================================================
 
   Future<void> _onMedicineClicked(Map<String, dynamic> routine) async {
-    debugPrint('=================================');
-
-    debugPrint('Opening Edit Medicine Dialog');
-
-    debugPrint('User ID: ${routine['userId']}');
-
-    debugPrint('Medicine ID: ${routine['medicineId']}');
-
-    debugPrint('Schedule ID: ${routine['scheduleId']}');
-
-    debugPrint('=================================');
-
-    // ------------------------------------------------------------------------
-    // Important validation
-    // ------------------------------------------------------------------------
-
     if (routine['medicineId'] == null) {
       ScaffoldMessenger.of(
         context,
@@ -707,10 +576,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
       return;
     }
 
-    // ------------------------------------------------------------------------
-    // Open edit dialog
-    // ------------------------------------------------------------------------
-
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -718,20 +583,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
       },
     );
 
-    // ------------------------------------------------------------------------
-    // Reload after successful update
-    // ------------------------------------------------------------------------
-
     if (result == true && mounted) {
-      debugPrint('Medicine updated successfully.');
-
-      debugPrint('Reloading Client Dashboard...');
-
-      // IMPORTANT:
-      //
-      // Do not manually modify _routines here.
-      //
-      // Get the latest data from Spring Boot instead.
       await _loadMedicines();
 
       if (mounted) {
@@ -742,9 +594,46 @@ class _ClientDashboardState extends State<ClientDashboard> {
     }
   }
 
-  // ==========================================================================
+  // ============================================================
+  // OPEN LOGS DIALOG
+  // ============================================================
+  void _openLogsDialog(
+      Map<String, dynamic> routine,
+      ) {
+    final scheduleId =
+    _toInt(routine['scheduleId']);
+
+    debugPrint('================================');
+    debugPrint('OPENING MEDICINE LOGS');
+    debugPrint('Medicine Name: ${routine['name']}');
+    debugPrint('Medicine ID: ${routine['medicineId']}');
+    debugPrint('Schedule ID: $scheduleId');
+    debugPrint('Routine: $routine');
+    debugPrint('================================');
+
+    if (scheduleId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Schedule ID is missing'),
+        ),
+      );
+
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return LogsDataDialog(
+          routine: routine,
+          scheduleId: scheduleId,
+        );
+      },
+    );
+  }
+  // ============================================================
   // TOGGLE TAKEN
-  // ==========================================================================
+  // ============================================================
 
   void _toggleTaken(int index) {
     if (index < 0 || index >= _routines.length) {
@@ -762,7 +651,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
       final key =
           routine['routineKey']?.toString() ??
-          '${routine['medicineId']}_${routine['scheduleId']}_${routine['time']}';
+          '${routine['medicineId']}_'
+              '${routine['scheduleId']}_'
+              '${routine['time']}';
 
       if (updated) {
         _takenKeys.add(key);
@@ -772,9 +663,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
     });
   }
 
-  // ==========================================================================
+  // ============================================================
   // ADD MEDICINE
-  // ==========================================================================
+  // ============================================================
 
   Future<void> _showAddMedicineDialog() async {
     final uid = _currentUserId;
@@ -787,10 +678,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
       return;
     }
 
-    // ------------------------------------------------------------------------
-    // Open Add Medicine Dialog
-    // ------------------------------------------------------------------------
-
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) {
@@ -798,21 +685,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
       },
     );
 
-    // ------------------------------------------------------------------------
-    // User cancelled
-    // ------------------------------------------------------------------------
-
     if (result == null || !mounted) {
       return;
     }
-
-    // ------------------------------------------------------------------------
-    // Reload from backend
-    //
-    // Do NOT manually add the medicine to _routines.
-    //
-    // Otherwise the medicine can appear twice.
-    // ------------------------------------------------------------------------
 
     await _loadMedicines();
 
@@ -832,27 +707,26 @@ class _ClientDashboardState extends State<ClientDashboard> {
               color: Colors.white,
               size: 20,
             ),
-
             const SizedBox(width: 10),
-
-            Expanded(child: Text('Added "$medName" to routine schedule')),
+            Expanded(
+              child: Text(
+                'Added "$medName" '
+                'to routine schedule',
+              ),
+            ),
           ],
         ),
-
         backgroundColor: const Color(0xFF0077B6),
-
         behavior: SnackBarBehavior.floating,
-
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-
         duration: const Duration(seconds: 3),
       ),
     );
   }
 
-  // ==========================================================================
-  // OPEN PROFILE
-  // ==========================================================================
+  // ============================================================
+  // PROFILE
+  // ============================================================
 
   Future<void> _openProfile() async {
     await Navigator.push(
@@ -868,15 +742,14 @@ class _ClientDashboardState extends State<ClientDashboard> {
       ),
     );
 
-    // Reload after returning from profile
     if (mounted) {
       await _loadMedicines();
     }
   }
 
-  // ==========================================================================
+  // ============================================================
   // BUILD
-  // ==========================================================================
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -887,21 +760,18 @@ class _ClientDashboardState extends State<ClientDashboard> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FB),
 
-      // ======================================================================
+      // ==========================================================
       // APP BAR
-      // ======================================================================
+      // ==========================================================
       appBar: AppBar(
         backgroundColor: Colors.white,
-
         elevation: 1,
-
         automaticallyImplyLeading: false,
 
         title: Row(
           children: [
             CircleAvatar(
               backgroundColor: primaryColor.withValues(alpha: 0.1),
-
               child: Icon(Icons.person, color: primaryColor),
             ),
 
@@ -914,7 +784,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
                   'Welcome,',
                   style: TextStyle(fontSize: 11, color: Colors.grey),
                 ),
-
                 Text(
                   widget.clientName,
                   style: TextStyle(
@@ -931,17 +800,15 @@ class _ClientDashboardState extends State<ClientDashboard> {
         actions: [
           IconButton(
             onPressed: _openProfile,
-
             icon: Icon(Icons.account_circle, color: primaryColor, size: 32),
           ),
-
           const SizedBox(width: 8),
         ],
       ),
 
-      // ======================================================================
+      // ==========================================================
       // BODY
-      // ======================================================================
+      // ==========================================================
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadMedicines,
@@ -955,9 +822,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
               crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
-                // ==============================================================
+                // ==================================================
                 // WELCOME CARD
-                // ==============================================================
+                // ==================================================
                 Container(
                   width: double.infinity,
 
@@ -965,7 +832,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                   decoration: BoxDecoration(
                     color: primaryColor,
-
                     borderRadius: BorderRadius.circular(18),
                   ),
 
@@ -978,7 +844,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
                           children: [
                             Text(
                               'Hello, ${widget.clientName}!',
-
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 20,
@@ -990,7 +855,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                             Text(
                               'Age: ${widget.clientAge} yrs',
-
                               style: const TextStyle(color: Colors.white70),
                             ),
 
@@ -998,7 +862,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                             Text(
                               '$takenCount/${_routines.length} Medicines taken today',
-
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600,
@@ -1019,16 +882,15 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                 const SizedBox(height: 24),
 
-                // ==============================================================
+                // ==================================================
                 // TITLE
-                // ==============================================================
+                // ==================================================
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
 
                   children: [
                     Text(
                       "Today's Medicine Routine",
-
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -1038,7 +900,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                     Text(
                       '${_routines.length} Doses',
-
                       style: TextStyle(
                         fontSize: 13,
                         color: primaryColor,
@@ -1050,9 +911,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                 const SizedBox(height: 12),
 
-                // ==============================================================
+                // ==================================================
                 // ERROR
-                // ==============================================================
+                // ==================================================
                 if (_errorMessage != null)
                   Container(
                     width: double.infinity,
@@ -1063,7 +924,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                     decoration: BoxDecoration(
                       color: Colors.red.shade50,
-
                       borderRadius: BorderRadius.circular(12),
                     ),
 
@@ -1092,9 +952,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
                     ),
                   ),
 
-                // ==============================================================
+                // ==================================================
                 // LOADING
-                // ==============================================================
+                // ==================================================
                 if (_isLoading && _routines.isEmpty)
                   const Center(
                     child: Padding(
@@ -1102,9 +962,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
                       child: CircularProgressIndicator(),
                     ),
                   )
-                // ==============================================================
+                // ==================================================
                 // EMPTY
-                // ==============================================================
+                // ==================================================
                 else if (_routines.isEmpty)
                   Container(
                     width: double.infinity,
@@ -1113,7 +973,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                     decoration: BoxDecoration(
                       color: Colors.white,
-
                       borderRadius: BorderRadius.circular(16),
                     ),
 
@@ -1145,9 +1004,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
                       ],
                     ),
                   )
-                // ==============================================================
+                // ==================================================
                 // MEDICINE LIST
-                // ==============================================================
+                // ==================================================
                 else
                   ListView.separated(
                     shrinkWrap: true,
@@ -1166,7 +1025,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
                       final isTaken = routine['taken'] == true;
 
                       final colorValue = routine['color'] is int
-                          ? routine['color'] as int
+                          ? routine['color']
                           : 0xFF4CAF50;
 
                       final medicineName =
@@ -1179,9 +1038,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
                       final time = routine['time']?.toString() ?? '08:30 AM';
 
                       return InkWell(
-                        // ======================================================
-                        // CLICK MEDICINE
-                        // ======================================================
                         onTap: () {
                           _onMedicineClicked(routine);
                         },
@@ -1193,17 +1049,12 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                           decoration: BoxDecoration(
                             color: Colors.white,
-
                             borderRadius: BorderRadius.circular(16),
-
                             border: Border.all(color: Colors.grey.shade200),
                           ),
 
                           child: Row(
                             children: [
-                              // =================================================
-                              // MEDICINE ICON
-                              // =================================================
                               Container(
                                 width: 45,
                                 height: 45,
@@ -1212,7 +1063,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                   color: Color(
                                     colorValue,
                                   ).withValues(alpha: 0.12),
-
                                   borderRadius: BorderRadius.circular(12),
                                 ),
 
@@ -1224,9 +1074,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                               const SizedBox(width: 14),
 
-                              // =================================================
-                              // DETAILS
-                              // =================================================
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1234,7 +1081,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                   children: [
                                     Text(
                                       medicineName,
-
                                       style: TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.bold,
@@ -1248,11 +1094,8 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                                     Text(
                                       instruction,
-
                                       maxLines: 2,
-
                                       overflow: TextOverflow.ellipsis,
-
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Colors.grey.shade600,
@@ -1269,7 +1112,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                                         Text(
                                           time,
-
                                           style: const TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
@@ -1288,7 +1130,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                             color: Color(
                                               colorValue,
                                             ).withValues(alpha: 0.10),
-
                                             borderRadius: BorderRadius.circular(
                                               20,
                                             ),
@@ -1297,7 +1138,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                           child: Text(
                                             routine['tag']?.toString() ??
                                                 'Daily',
-
                                             style: TextStyle(
                                               fontSize: 10,
                                               fontWeight: FontWeight.w600,
@@ -1310,6 +1150,60 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                   ],
                                 ),
                               ),
+
+                              // =================================================
+                              // LOGS BUTTON
+                              // =================================================
+                              OutlinedButton.icon(
+                                key: Key('logs_routine_button_$index'),
+
+                                onPressed: () {
+                                  _openLogsDialog(routine);
+                                },
+
+                                icon: const Icon(
+                                  Icons.bar_chart_rounded,
+                                  size: 15,
+                                ),
+
+                                label: const Text(
+                                  'Logs',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF0077B6),
+
+                                  backgroundColor: const Color(
+                                    0xFF0077B6,
+                                  ).withValues(alpha: 0.06),
+
+                                  side: BorderSide(
+                                    color: const Color(
+                                      0xFF0077B6,
+                                    ).withValues(alpha: 0.28),
+                                  ),
+
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+
+                                  minimumSize: Size.zero,
+
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(width: 4),
 
                               // =================================================
                               // EDIT BUTTON
@@ -1346,7 +1240,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                   isTaken
                                       ? Icons.check_circle
                                       : Icons.radio_button_unchecked,
-
                                   color: isTaken ? Colors.green : Colors.grey,
                                 ),
                               ),
@@ -1362,9 +1255,9 @@ class _ClientDashboardState extends State<ClientDashboard> {
         ),
       ),
 
-      // ======================================================================
-      // ADD MEDICINE BUTTON
-      // ======================================================================
+      // ==========================================================
+      // ADD MEDICINE
+      // ==========================================================
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddMedicineDialog,
 
@@ -1382,8 +1275,6 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
 // ============================================================================
 // MEDICINE DETAILS DIALOG
-//
-// Kept for compatibility with any existing code that opens this class.
 // ============================================================================
 
 class MedicineDetailsDialog extends StatelessWidget {
