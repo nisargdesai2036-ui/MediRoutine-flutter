@@ -33,8 +33,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  final Set<String> _takenKeys = {};
-  final Set<int> _updatingLogIds = {};
+  final Set<String> _updatingKeys = {};
 
   int? get _currentUserId => widget.userId ?? UserSession.userid;
 
@@ -45,14 +44,51 @@ class _ClientDashboardState extends State<ClientDashboard> {
         '${now.day.toString().padLeft(2, '0')}';
   }
 
+  bool _isToday(dynamic dateValue) {
+    if (dateValue == null) return false;
+    final now = DateTime.now();
+
+    if (dateValue is List && dateValue.length >= 3) {
+      final y = _toInt(dateValue[0]);
+      final m = _toInt(dateValue[1]);
+      final d = _toInt(dateValue[2]);
+      return y == now.year && m == now.month && d == now.day;
+    }
+
+    final dateStr = dateValue.toString().split('T').first.trim();
+    if (dateStr == _todayDate) return true;
+
+    final parsed = DateTime.tryParse(dateStr);
+    if (parsed != null) {
+      return parsed.year == now.year &&
+          parsed.month == now.month &&
+          parsed.day == now.day;
+    }
+
+    return false;
+  }
+
   /// Gets the current-day log for one schedule.
-  /// GET /api/logs/schedule/{scheduleId} should return a list of log DTOs.
+  /// First checks the dedicated /api/logs/schedule/{scheduleId}/today endpoint,
+  /// and falls back to searching /api/logs/schedule/{scheduleId}.
   Future<Map<String, dynamic>?> _getTodayLogForSchedule(
       int? scheduleId,
       ) async {
     if (scheduleId == null) return null;
 
     try {
+      // Direct today lookup
+      try {
+        final todayResponse =
+        await ApiService.get('/api/logs/schedule/$scheduleId/today');
+        final todayMap = _toMap(todayResponse);
+        if (todayMap != null && todayMap['id'] != null) {
+          return todayMap;
+        }
+      } catch (_) {
+        // Fallback to checking full schedule logs
+      }
+
       final response =
       await ApiService.get('/api/logs/schedule/$scheduleId');
 
@@ -62,10 +98,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
         final log = _toMap(item);
         if (log == null) continue;
 
-        final scheduledDate =
-            log['scheduledDate']?.toString().split('T').first;
-
-        if (scheduledDate == _todayDate) {
+        if (_isToday(log['scheduledDate'])) {
           return log;
         }
       }
@@ -565,6 +598,20 @@ class _ClientDashboardState extends State<ClientDashboard> {
   }
 
   // ============================================================
+  // BACKEND TIME
+  // ============================================================
+
+  String _toBackendTime(String? timeStr) {
+    if (timeStr == null || timeStr.trim().isEmpty) {
+      return '08:30:00';
+    }
+    final minutes = _convertTimeToMinutes(timeStr);
+    final hours = (minutes ~/ 60).toString().padLeft(2, '0');
+    final mins = (minutes % 60).toString().padLeft(2, '0');
+    return '$hours:$mins:00';
+  }
+
+  // ============================================================
   // COLOR
   // ============================================================
 
@@ -692,39 +739,102 @@ class _ClientDashboardState extends State<ClientDashboard> {
     if (index < 0 || index >= _routines.length) return;
 
     final routine = _routines[index];
+    final routineKey =
+        routine['routineKey']?.toString() ?? 'routine_$index';
     final logId = _toInt(routine['logId']);
+    final scheduleId = _toInt(routine['scheduleId']);
 
-    if (logId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Today's medicine log is not available yet. "
-                  "Please try again after today's logs are generated.",
-            ),
-          ),
-        );
-      }
-      return;
-    }
+    debugPrint(
+      'Toggle medicine: scheduleId=$scheduleId, logId=$logId, '
+          'currentStatus=${routine['status']}',
+    );
 
-    if (_updatingLogIds.contains(logId)) return;
+    if (_updatingKeys.contains(routineKey)) return;
 
     final previousTaken = routine['taken'] == true;
     final previousStatus = (routine['status'] ?? 'SCHEDULED').toString();
+    final previousLogId = routine['logId'];
+
+    // Determine target state based on user action and time rules:
+    // When button is empty: mark as TAKEN
+    // When button is green: revert based on schedule time rules:
+    // 1) Current time < scheduled time -> SCHEDULED
+    // 2) Scheduled time <= Current time <= Scheduled time + 1hr -> SCHEDULED
+    // 3) Current time > Scheduled time + 1hr -> MISSED
+    String targetStatus;
+    bool targetTaken;
+
+    if (!previousTaken) {
+      targetStatus = 'TAKEN';
+      targetTaken = true;
+    } else {
+      final scheduledMinutes =
+      _convertTimeToMinutes(routine['time']?.toString());
+      final now = DateTime.now();
+      final currentMinutes = now.hour * 60 + now.minute;
+
+      if (currentMinutes > scheduledMinutes + 60) {
+        targetStatus = 'MISSED';
+      } else {
+        targetStatus = 'SCHEDULED';
+      }
+      targetTaken = false;
+    }
 
     // Update the UI immediately while the backend request is in progress.
     setState(() {
-      _updatingLogIds.add(logId);
-      routine['taken'] = !previousTaken;
-      routine['status'] = !previousTaken ? 'TAKEN' : previousStatus;
+      _updatingKeys.add(routineKey);
+      routine['taken'] = targetTaken;
+      routine['status'] = targetStatus;
     });
 
     try {
-      final response = await ApiService.post(
-        '/api/logs/$logId/toggle',
-        <String, dynamic>{},
-      );
+      dynamic response;
+      try {
+        if (logId != null) {
+          response = await ApiService.post(
+            '/api/logs/$logId/toggle',
+            <String, dynamic>{},
+          );
+        } else if (scheduleId != null) {
+          response = await ApiService.post(
+            '/api/logs/schedule/$scheduleId/toggle',
+            <String, dynamic>{},
+          );
+        }
+      } catch (e) {
+        debugPrint(
+          'Toggle endpoint not reachable ($e), falling back to PUT / POST log API',
+        );
+        final backendTime = _toBackendTime(routine['time']?.toString());
+        if (logId != null) {
+          response = await ApiService.put(
+            '/api/logs/$logId',
+            <String, dynamic>{
+              'scheduleId': scheduleId,
+              'scheduledDate': _todayDate,
+              'scheduledTime': backendTime,
+              'status': targetStatus,
+              if (targetStatus == 'TAKEN')
+                'actionTime': DateTime.now().toIso8601String(),
+            },
+          );
+        } else if (scheduleId != null) {
+          response = await ApiService.post(
+            '/api/logs',
+            <String, dynamic>{
+              'scheduleId': scheduleId,
+              'scheduledDate': _todayDate,
+              'scheduledTime': backendTime,
+              'status': targetStatus,
+              if (targetStatus == 'TAKEN')
+                'actionTime': DateTime.now().toIso8601String(),
+            },
+          );
+        } else {
+          rethrow;
+        }
+      }
 
       final responseMap = _toMap(response);
       if (responseMap == null || responseMap['status'] == null) {
@@ -732,10 +842,13 @@ class _ClientDashboardState extends State<ClientDashboard> {
       }
 
       final newStatus = responseMap['status'].toString().toUpperCase();
+      final newLogId =
+          _toInt(responseMap['id'] ?? responseMap['logId']) ?? logId;
 
       if (!mounted) return;
 
       setState(() {
+        routine['logId'] = newLogId;
         routine['status'] = newStatus;
         routine['taken'] = newStatus == 'TAKEN';
       });
@@ -745,18 +858,19 @@ class _ClientDashboardState extends State<ClientDashboard> {
       setState(() {
         routine['taken'] = previousTaken;
         routine['status'] = previousStatus;
+        routine['logId'] = previousLogId;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update medicine status. $e')),
+        SnackBar(content: Text('Could not update medicine status: $e')),
       );
     } finally {
       if (mounted) {
         setState(() {
-          _updatingLogIds.remove(logId);
+          _updatingKeys.remove(routineKey);
         });
       } else {
-        _updatingLogIds.remove(logId);
+        _updatingKeys.remove(routineKey);
       }
     }
   }
@@ -1325,36 +1439,42 @@ class _ClientDashboardState extends State<ClientDashboard> {
                               // =================================================
                               // TAKEN BUTTON
                               // =================================================
-                              IconButton(
-                                onPressed: _toInt(routine['logId']) == null ||
-                                    _updatingLogIds.contains(
-                                      _toInt(routine['logId']),
+                              Builder(
+                                builder: (context) {
+                                  final routineKey =
+                                      routine['routineKey']?.toString() ??
+                                          'routine_$index';
+                                  final isUpdating =
+                                  _updatingKeys.contains(routineKey);
+
+                                  return IconButton(
+                                    key: Key('taken_routine_button_$index'),
+                                    onPressed: isUpdating
+                                        ? null
+                                        : () {
+                                      _toggleTaken(index);
+                                    },
+                                    tooltip: isTaken
+                                        ? 'Mark as not taken'
+                                        : 'Mark as taken',
+                                    icon: isUpdating
+                                        ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
-                                    ? null
-                                    : () {
-                                  _toggleTaken(index);
+                                        : Icon(
+                                      isTaken
+                                          ? Icons.check_circle
+                                          : Icons.radio_button_unchecked,
+                                      color: isTaken
+                                          ? Colors.green
+                                          : Colors.grey,
+                                    ),
+                                  );
                                 },
-                                tooltip: isTaken
-                                    ? 'Mark as not taken'
-                                    : 'Mark as taken',
-                                icon: _updatingLogIds.contains(
-                                  _toInt(routine['logId']),
-                                )
-                                    ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                                    : Icon(
-                                  isTaken
-                                      ? Icons.check_circle
-                                      : Icons.radio_button_unchecked,
-                                  color: isTaken
-                                      ? Colors.green
-                                      : Colors.grey,
-                                ),
                               ),
                             ],
                           ),
