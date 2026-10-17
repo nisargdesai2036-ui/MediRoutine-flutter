@@ -7,12 +7,17 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+<<<<<<< Updated upstream
 import java.time.LocalTime;
+=======
+>>>>>>> Stashed changes
 import java.util.List;
+import java.util.Optional;
 
 public interface MedicineLogRepository extends JpaRepository<MedicineLog, Long> {
 
     List<MedicineLog> findByScheduleId(Long scheduleId);
+<<<<<<< Updated upstream
     List<MedicineLog> findBySchedule_IdOrderByScheduledDateDescScheduleTimeDesc(Long scheduleId);
 
 
@@ -42,4 +47,8 @@ public interface MedicineLogRepository extends JpaRepository<MedicineLog, Long> 
      List<MedicineLog> findBySchedule_IdOrderByScheduledDateDescScheduledTimeDesc(Long scheduleId);
 
 
+=======
+
+    Optional<MedicineLog> findByScheduleIdAndScheduledDate(Long scheduleId, LocalDate scheduledDate);
+>>>>>>> Stashed changes
 }

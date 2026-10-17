@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 | Feature               | Method   | Endpoint                               | Purpose                         |
 | --------------------- | -------- | -------------------------------------- | ------------------------------- |
 
@@ -34,3 +35,43 @@
 | **Upcoming**          | `GET`    | `/api/users/{userId}/upcoming`         | Get upcoming medicine doses     |
 
 | **History**           | `GET`    | `/api/users/{userId}/history`          | Get medicine-taking history     |
+=======
+| Feature                    | Method   | Endpoint                                          | Purpose                                              |
+| -------------------------- | -------- | ------------------------------------------------- | ---------------------------------------------------- |
+|                            |          |                                                   |                                                      |
+| **Users**                  | `POST`   | `/api/users`                                      | Register/create a user                               |
+|                            | `POST`   | `/api/users/login`                                | Authenticate user login                              |
+|                            | `GET`    | `/api/users`                                      | Get all users                                        |
+|                            | `GET`    | `/api/users/{id}`                                 | Get user by ID                                       |
+|                            | `GET`    | `/api/users/email/{email}`                        | Find user by email                                   |
+|                            | `PUT`    | `/api/users/{id}`                                 | Update user details                                  |
+|                            | `DELETE` | `/api/users/{id}`                                 | Delete user                                          |
+|                            |          |                                                   |                                                      |
+| **Global Medicines**       | `GET`    | `/api/global-medicines`                           | Get all global medicines                             |
+| *(Master Catalog)*         | `GET`    | `/api/global-medicines/search?query={query}`      | Case-insensitive autocomplete & search               |
+|                            | `GET`    | `/api/global-medicines/{id}`                      | Get global medicine details                          |
+|                            | `POST`   | `/api/global-medicines`                           | Add new medicine to catalog                          |
+|                            | `PUT`    | `/api/global-medicines/{id}`                      | Update global medicine                               |
+|                            | `DELETE` | `/api/global-medicines/{id}`                      | Delete global medicine                               |
+|                            |          |                                                   |                                                      |
+| **Medicines**              | `GET`    | `/api/medicines/user/{userId}`                    | Get all medicines/schedules for a user               |
+|                            | `POST`   | `/api/medicines/add`                              | Add medicine and routine schedule                    |
+|                            | `PATCH`  | `/api/medicines/update/{medicineId}`              | Partially update medicine name/dosage/instructions   |
+|                            | `POST`   | `/api/medicines/update/{medicineId}`              | Edit/update medicine & schedule via POST             |
+|                            |          |                                                   |                                                      |
+| **Medicine Schedules**     | `POST`   | `/api/schedules`                                  | Create routine schedule with nested medicine items   |
+| *(User Routines)*          | `GET`    | `/api/schedules`                                  | Get all routine schedules                            |
+|                            | `GET`    | `/api/schedules/{id}`                             | Get schedule details by ID                           |
+|                            | `GET`    | `/api/schedules/user/{userId}`                    | Get all routine schedules for a user                 |
+|                            | `PUT`    | `/api/schedules/{id}`                             | Update routine schedule and items                    |
+|                            | `PATCH`  | `/api/schedules/update/{scheduleId}`              | Partially update schedule timing/frequency/items     |
+|                            | `POST`   | `/api/schedules/update/{scheduleId}`              | Edit/update schedule & medicine via POST             |
+|                            | `DELETE` | `/api/schedules/{id}`                             | Delete routine schedule                              |
+|                            |          |                                                   |                                                      |
+| **Medicine Logs**          | `POST`   | `/api/logs`                                       | Log dose intake status (TAKEN, MISSED, SKIPPED)      |
+| *(Adherence Tracking)*     | `GET`    | `/api/logs/{id}`                                  | Get specific intake log by ID                        |
+|                            | `GET`    | `/api/logs/schedule-item/{scheduleItemId}`        | Get logs for a specific scheduled medicine item      |
+|                            | `GET`    | `/api/logs/schedule/{scheduleId}`                 | Get all intake logs for a routine schedule           |
+|                            | `PUT`    | `/api/logs/{id}`                                  | Update intake log status/action time                 |
+|                            | `DELETE` | `/api/logs/{id}`                                  | Delete intake log                                    |
+>>>>>>> Stashed changes
