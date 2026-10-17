@@ -39,4 +39,7 @@ public interface MedicineLogRepository extends JpaRepository<MedicineLog, Long> 
             LogStatus status
     );
 
+     List<MedicineLog> findBySchedule_IdOrderByScheduledDateDescScheduledTimeDesc(Long scheduleId);
+
+
 }

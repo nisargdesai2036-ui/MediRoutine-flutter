@@ -1,5 +1,7 @@
 package com.example.mediroutine.service;
 
+import com.example.mediroutine.dto.MedicineLogRequest;
+import com.example.mediroutine.dto.MedicineLogStatusResponse;
 import com.example.mediroutine.entity.FrequencyType;
 import com.example.mediroutine.entity.MedicineLog;
 import com.example.mediroutine.entity.MedicineSchedule;
@@ -7,12 +9,11 @@ import com.example.mediroutine.entity.LogStatus;
 import com.example.mediroutine.repository.MedicineLogRepository;
 import com.example.mediroutine.repository.MedicineScheduleRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -253,8 +254,65 @@ public class MedicineLogService {
         }
     }
 
+    @Transactional
+    public MedicineLogStatusResponse toggleScheduleTaken(Long logId) {
+
+        MedicineLog log = medicineLogRepository.findById(logId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Medicine log not found"
+                ));
+
+        ZoneId zone = ZoneId.of("Asia/Kolkata");
+        ZonedDateTime currentDateTime = ZonedDateTime.now(zone);
+
+        LocalDate today = currentDateTime.toLocalDate();
+
+        // Only today's logs can be modified
+        if (log.getScheduledDate() == null
+                || !log.getScheduledDate().equals(today)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Only today's medicine logs can be modified"
+            );
+        }
+
+        if (log.getStatus() == LogStatus.TAKEN) {
+
+            LocalDateTime scheduledDateTime =
+                    log.getScheduledDate()
+                            .atTime(log.getScheduledTime());
+
+            LocalDateTime deadline =
+                    scheduledDateTime.plusHours(1);
+
+            LocalDateTime now =
+                    currentDateTime.toLocalDateTime();
+
+            if (now.isBefore(deadline)) {
+                log.setStatus(LogStatus.SCHEDULED);
+            } else {
+                log.setStatus(LogStatus.MISSED);
+            }
+
+        } else {
+            // Empty button: always mark as TAKEN
+            log.setStatus(LogStatus.TAKEN);
+        }
+
+        MedicineLog saved = medicineLogRepository.save(log);
+
+        return new MedicineLogStatusResponse(
+                saved.getId(),
+                saved.getStatus().name()
+        );
+    }
+
     public List<MedicineLog> getLogsOfSchedule(Long scheduleId)
     {
-        return medicineLogRepository.findBySchedule_IdOrderByScheduledDateDescScheduleTimeDesc(scheduleId);
+        return medicineLogRepository.findBySchedule_IdOrderByScheduledDateDescScheduledTimeDesc(scheduleId);
     }
 }
+
+
+
