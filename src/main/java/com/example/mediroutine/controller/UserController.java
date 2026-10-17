@@ -4,7 +4,6 @@ import com.example.mediroutine.dto.UserLoginRequest;
 import com.example.mediroutine.dto.UserRequest;
 import com.example.mediroutine.dto.UserResponse;
 import com.example.mediroutine.entity.User;
-import com.example.mediroutine.repository.UserRepository;
 import com.example.mediroutine.service.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
-
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -58,7 +56,6 @@ public class UserController {
         return ResponseEntity.ok(toResponse(existingClient));
     }
 
-
     @GetMapping
     public List<UserResponse> getAllUsers() {
         return userService.getAllUsers()
@@ -83,19 +80,19 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @PutMapping("/{id}")
+    @PatchMapping("/update/{id}")
     public ResponseEntity<UserResponse> updateUser(@PathVariable Long id, @RequestBody UserRequest request) {
         return userService.getUserById(id)
                 .map(existingUser -> {
                     existingUser.setName(request.getName());
                     existingUser.setEmail(request.getEmail());
-                    existingUser.setPassword(request.getPassword());
 
                     User savedUser = userService.saveUser(existingUser);
                     return ResponseEntity.ok(toResponse(savedUser));
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
+
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {

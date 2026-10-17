@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.PATCH, RequestMethod.DELETE, RequestMethod.OPTIONS}, allowedHeaders = "*")
 @RestController
 @RequestMapping("/api/logs")
 public class MedicineLogController {
@@ -59,6 +59,37 @@ public class MedicineLogController {
     public ResponseEntity<MedicineLogResponse> updateLog(@PathVariable Long id, @RequestBody MedicineLogRequest request) {
         return medicineLogService.getLogById(id)
                 .map(existingLog -> updateLogFromRequest(existingLog, request))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/toggle")
+    public ResponseEntity<MedicineLogResponse> toggleLog(@PathVariable Long id) {
+        try {
+            MedicineLog updated = medicineLogService.toggleLogStatus(id);
+            return ResponseEntity.ok(toResponse(updated));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PostMapping("/schedule/{scheduleId}/toggle")
+    public ResponseEntity<MedicineLogResponse> toggleScheduleLog(@PathVariable Long scheduleId) {
+        try {
+            MedicineLog updated = medicineLogService.toggleScheduleStatusForToday(scheduleId);
+            return ResponseEntity.ok(toResponse(updated));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/schedule/{scheduleId}/today")
+    public ResponseEntity<MedicineLogResponse> getTodayLogForSchedule(@PathVariable Long scheduleId) {
+        return medicineLogService.getTodayLogForSchedule(scheduleId)
+                .map(log -> ResponseEntity.ok(toResponse(log)))
                 .orElse(ResponseEntity.notFound().build());
     }
 

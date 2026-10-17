@@ -21,6 +21,25 @@ public class MedicineScheduleService {
         this.medicineScheduleRepository = medicineScheduleRepository;
     }
 
+<<<<<<< Updated upstream
+=======
+    public List<MedicineSchedule> getAllSchedules() {
+        return medicineScheduleRepository.findAll();
+    }
+
+    public Optional<MedicineSchedule> getScheduleById(Long id) {
+        return medicineScheduleRepository.findById(id);
+    }
+
+    public List<MedicineSchedule> getSchedulesByMedicineId(Long medicineId) {
+        return medicineScheduleRepository.findByMedicineId(medicineId);
+    }
+
+    public List<MedicineSchedule> getSchedulesByUserId(Long userId) {
+        return medicineScheduleRepository.findByUserId(userId);
+    }
+
+>>>>>>> Stashed changes
     public MedicineSchedule saveSchedule(MedicineSchedule schedule) {
         return medicineScheduleRepository.save(schedule);
     }

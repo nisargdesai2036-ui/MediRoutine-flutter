@@ -33,9 +33,83 @@ class _ClientDashboardState extends State<ClientDashboard> {
   bool _isLoading = false;
   String? _errorMessage;
 
-  final Set<String> _takenKeys = {};
+  final Set<String> _updatingKeys = {};
 
   int? get _currentUserId => widget.userId ?? UserSession.userid;
+
+  String get _todayDate {
+    final now = DateTime.now();
+    return '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+  }
+
+  bool _isToday(dynamic dateValue) {
+    if (dateValue == null) return false;
+    final now = DateTime.now();
+
+    if (dateValue is List && dateValue.length >= 3) {
+      final y = _toInt(dateValue[0]);
+      final m = _toInt(dateValue[1]);
+      final d = _toInt(dateValue[2]);
+      return y == now.year && m == now.month && d == now.day;
+    }
+
+    final dateStr = dateValue.toString().split('T').first.trim();
+    if (dateStr == _todayDate) return true;
+
+    final parsed = DateTime.tryParse(dateStr);
+    if (parsed != null) {
+      return parsed.year == now.year &&
+          parsed.month == now.month &&
+          parsed.day == now.day;
+    }
+
+    return false;
+  }
+
+  /// Gets the current-day log for one schedule.
+  /// First checks the dedicated /api/logs/schedule/{scheduleId}/today endpoint,
+  /// and falls back to searching /api/logs/schedule/{scheduleId}.
+  Future<Map<String, dynamic>?> _getTodayLogForSchedule(
+      int? scheduleId,
+      ) async {
+    if (scheduleId == null) return null;
+
+    try {
+      // Direct today lookup
+      try {
+        final todayResponse =
+        await ApiService.get('/api/logs/schedule/$scheduleId/today');
+        final todayMap = _toMap(todayResponse);
+        if (todayMap != null && todayMap['id'] != null) {
+          return todayMap;
+        }
+      } catch (_) {
+        // Fallback to checking full schedule logs
+      }
+
+      final response =
+      await ApiService.get('/api/logs/schedule/$scheduleId');
+
+      if (response is! List) return null;
+
+      for (final item in response) {
+        final log = _toMap(item);
+        if (log == null) continue;
+
+        if (_isToday(log['scheduledDate'])) {
+          return log;
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        'Could not load today log for schedule $scheduleId: $e',
+      );
+    }
+
+    return null;
+  }
 
   @override
   void initState() {
@@ -129,7 +203,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
         debugPrint(
           'Medicine API returned '
-          '${medicineList.length} medicines',
+              '${medicineList.length} medicines',
         );
       } catch (e) {
         debugPrint('Error fetching medicines: $e');
@@ -172,7 +246,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
         debugPrint(
           'Schedule API returned '
-          '${scheduleList.length} schedules',
+              '${scheduleList.length} schedules',
         );
       } catch (e) {
         debugPrint('Error fetching schedules: $e');
@@ -210,7 +284,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
         if (medicineId == null) {
           debugPrint(
             'Skipping schedule because '
-            'medicineId is missing: $scheduleMap',
+                'medicineId is missing: $scheduleMap',
           );
 
           continue;
@@ -221,15 +295,15 @@ class _ClientDashboardState extends State<ClientDashboard> {
         if (medicineMap == null) {
           debugPrint(
             'Medicine $medicineId not found '
-            'for schedule $scheduleId',
+                'for schedule $scheduleId',
           );
 
           continue;
         }
 
         final medicineName =
-            (medicineMap['name'] ?? medicineMap['medicineName'] ?? 'Medicine')
-                .toString();
+        (medicineMap['name'] ?? medicineMap['medicineName'] ?? 'Medicine')
+            .toString();
 
         final medicineDescription = medicineMap['description']?.toString();
 
@@ -262,7 +336,11 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
         final routineKey = '${medicineId}_${scheduleId ?? ''}_$timeStr';
 
-        final isTaken = _takenKeys.contains(routineKey);
+        final todayLog = await _getTodayLogForSchedule(scheduleId);
+        final todayLogId = _toInt(todayLog?['id']);
+        final todayStatus =
+        (todayLog?['status'] ?? 'SCHEDULED').toString().toUpperCase();
+        final isTaken = todayStatus == 'TAKEN';
 
         parsedRoutines.add({
           'userId': userId,
@@ -288,6 +366,8 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
           'instruction': instruction,
           'taken': isTaken,
+          'logId': todayLogId,
+          'status': todayStatus,
           'routineKey': routineKey,
 
           'color': _getColorForPeriod(periodStr, timeStr),
@@ -315,8 +395,8 @@ class _ClientDashboardState extends State<ClientDashboard> {
           }
 
           final medicineName =
-              (medicineMap['name'] ?? medicineMap['medicineName'] ?? 'Medicine')
-                  .toString();
+          (medicineMap['name'] ?? medicineMap['medicineName'] ?? 'Medicine')
+              .toString();
 
           final medicineDescription = medicineMap['description']?.toString();
 
@@ -354,7 +434,11 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
             final routineKey = '${medicineId}_${scheduleId ?? ''}_$timeStr';
 
-            final isTaken = _takenKeys.contains(routineKey);
+            final todayLog = await _getTodayLogForSchedule(scheduleId);
+            final todayLogId = _toInt(todayLog?['id']);
+            final todayStatus =
+            (todayLog?['status'] ?? 'SCHEDULED').toString().toUpperCase();
+            final isTaken = todayStatus == 'TAKEN';
 
             String instruction = 'Take as prescribed';
 
@@ -387,6 +471,8 @@ class _ClientDashboardState extends State<ClientDashboard> {
               'instruction': instruction,
 
               'taken': isTaken,
+              'logId': todayLogId,
+              'status': todayStatus,
 
               'routineKey': routineKey,
 
@@ -509,6 +595,20 @@ class _ClientDashboardState extends State<ClientDashboard> {
     } catch (_) {
       return 0;
     }
+  }
+
+  // ============================================================
+  // BACKEND TIME
+  // ============================================================
+
+  String _toBackendTime(String? timeStr) {
+    if (timeStr == null || timeStr.trim().isEmpty) {
+      return '08:30:00';
+    }
+    final minutes = _convertTimeToMinutes(timeStr);
+    final hours = (minutes ~/ 60).toString().padLeft(2, '0');
+    final mins = (minutes % 60).toString().padLeft(2, '0');
+    return '$hours:$mins:00';
   }
 
   // ============================================================
@@ -635,32 +735,144 @@ class _ClientDashboardState extends State<ClientDashboard> {
   // TOGGLE TAKEN
   // ============================================================
 
-  void _toggleTaken(int index) {
-    if (index < 0 || index >= _routines.length) {
-      return;
+  Future<void> _toggleTaken(int index) async {
+    if (index < 0 || index >= _routines.length) return;
+
+    final routine = _routines[index];
+    final routineKey =
+        routine['routineKey']?.toString() ?? 'routine_$index';
+    final logId = _toInt(routine['logId']);
+    final scheduleId = _toInt(routine['scheduleId']);
+
+    debugPrint(
+      'Toggle medicine: scheduleId=$scheduleId, logId=$logId, '
+          'currentStatus=${routine['status']}',
+    );
+
+    if (_updatingKeys.contains(routineKey)) return;
+
+    final previousTaken = routine['taken'] == true;
+    final previousStatus = (routine['status'] ?? 'SCHEDULED').toString();
+    final previousLogId = routine['logId'];
+
+    // Determine target state based on user action and time rules:
+    // When button is empty: mark as TAKEN
+    // When button is green: revert based on schedule time rules:
+    // 1) Current time < scheduled time -> SCHEDULED
+    // 2) Scheduled time <= Current time <= Scheduled time + 1hr -> SCHEDULED
+    // 3) Current time > Scheduled time + 1hr -> MISSED
+    String targetStatus;
+    bool targetTaken;
+
+    if (!previousTaken) {
+      targetStatus = 'TAKEN';
+      targetTaken = true;
+    } else {
+      final scheduledMinutes =
+      _convertTimeToMinutes(routine['time']?.toString());
+      final now = DateTime.now();
+      final currentMinutes = now.hour * 60 + now.minute;
+
+      if (currentMinutes > scheduledMinutes + 60) {
+        targetStatus = 'MISSED';
+      } else {
+        targetStatus = 'SCHEDULED';
+      }
+      targetTaken = false;
     }
 
+    // Update the UI immediately while the backend request is in progress.
     setState(() {
-      final routine = _routines[index];
-
-      final current = routine['taken'] == true;
-
-      final updated = !current;
-
-      routine['taken'] = updated;
-
-      final key =
-          routine['routineKey']?.toString() ??
-          '${routine['medicineId']}_'
-              '${routine['scheduleId']}_'
-              '${routine['time']}';
-
-      if (updated) {
-        _takenKeys.add(key);
-      } else {
-        _takenKeys.remove(key);
-      }
+      _updatingKeys.add(routineKey);
+      routine['taken'] = targetTaken;
+      routine['status'] = targetStatus;
     });
+
+    try {
+      dynamic response;
+      try {
+        if (logId != null) {
+          response = await ApiService.post(
+            '/api/logs/$logId/toggle',
+            <String, dynamic>{},
+          );
+        } else if (scheduleId != null) {
+          response = await ApiService.post(
+            '/api/logs/schedule/$scheduleId/toggle',
+            <String, dynamic>{},
+          );
+        }
+      } catch (e) {
+        debugPrint(
+          'Toggle endpoint not reachable ($e), falling back to PUT / POST log API',
+        );
+        final backendTime = _toBackendTime(routine['time']?.toString());
+        if (logId != null) {
+          response = await ApiService.put(
+            '/api/logs/$logId',
+            <String, dynamic>{
+              'scheduleId': scheduleId,
+              'scheduledDate': _todayDate,
+              'scheduledTime': backendTime,
+              'status': targetStatus,
+              if (targetStatus == 'TAKEN')
+                'actionTime': DateTime.now().toIso8601String(),
+            },
+          );
+        } else if (scheduleId != null) {
+          response = await ApiService.post(
+            '/api/logs',
+            <String, dynamic>{
+              'scheduleId': scheduleId,
+              'scheduledDate': _todayDate,
+              'scheduledTime': backendTime,
+              'status': targetStatus,
+              if (targetStatus == 'TAKEN')
+                'actionTime': DateTime.now().toIso8601String(),
+            },
+          );
+        } else {
+          rethrow;
+        }
+      }
+
+      final responseMap = _toMap(response);
+      if (responseMap == null || responseMap['status'] == null) {
+        throw Exception('The server returned an invalid log status.');
+      }
+
+      final newStatus = responseMap['status'].toString().toUpperCase();
+      final newLogId =
+          _toInt(responseMap['id'] ?? responseMap['logId']) ?? logId;
+
+      if (!mounted) return;
+
+      setState(() {
+        routine['logId'] = newLogId;
+        routine['status'] = newStatus;
+        routine['taken'] = newStatus == 'TAKEN';
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        routine['taken'] = previousTaken;
+        routine['status'] = previousStatus;
+        routine['logId'] = previousLogId;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update medicine status: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingKeys.remove(routineKey);
+        });
+      } else {
+        _updatingKeys.remove(routineKey);
+      }
+    }
   }
 
   // ============================================================
@@ -711,7 +923,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
             Expanded(
               child: Text(
                 'Added "$medName" '
-                'to routine schedule',
+                    'to routine schedule',
               ),
             ),
           ],
@@ -1033,7 +1245,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                       final instruction =
                           routine['instruction']?.toString() ??
-                          'Take as prescribed';
+                              'Take as prescribed';
 
                       final time = routine['time']?.toString() ?? '08:30 AM';
 
@@ -1195,7 +1407,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                   minimumSize: Size.zero,
 
                                   tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
+                                  MaterialTapTargetSize.shrinkWrap,
 
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
@@ -1227,21 +1439,42 @@ class _ClientDashboardState extends State<ClientDashboard> {
                               // =================================================
                               // TAKEN BUTTON
                               // =================================================
-                              IconButton(
-                                onPressed: () {
-                                  _toggleTaken(index);
+                              Builder(
+                                builder: (context) {
+                                  final routineKey =
+                                      routine['routineKey']?.toString() ??
+                                          'routine_$index';
+                                  final isUpdating =
+                                  _updatingKeys.contains(routineKey);
+
+                                  return IconButton(
+                                    key: Key('taken_routine_button_$index'),
+                                    onPressed: isUpdating
+                                        ? null
+                                        : () {
+                                      _toggleTaken(index);
+                                    },
+                                    tooltip: isTaken
+                                        ? 'Mark as not taken'
+                                        : 'Mark as taken',
+                                    icon: isUpdating
+                                        ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                        : Icon(
+                                      isTaken
+                                          ? Icons.check_circle
+                                          : Icons.radio_button_unchecked,
+                                      color: isTaken
+                                          ? Colors.green
+                                          : Colors.grey,
+                                    ),
+                                  );
                                 },
-
-                                tooltip: isTaken
-                                    ? 'Mark as not taken'
-                                    : 'Mark as taken',
-
-                                icon: Icon(
-                                  isTaken
-                                      ? Icons.check_circle
-                                      : Icons.radio_button_unchecked,
-                                  color: isTaken ? Colors.green : Colors.grey,
-                                ),
                               ),
                             ],
                           ),

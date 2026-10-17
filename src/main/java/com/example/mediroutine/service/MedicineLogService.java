@@ -1,5 +1,6 @@
 package com.example.mediroutine.service;
 
+<<<<<<< Updated upstream
 import com.example.mediroutine.dto.MedicineLogRequest;
 import com.example.mediroutine.dto.MedicineLogStatusResponse;
 import com.example.mediroutine.entity.FrequencyType;
@@ -10,11 +11,24 @@ import com.example.mediroutine.repository.MedicineLogRepository;
 import com.example.mediroutine.repository.MedicineScheduleRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
+=======
+import com.example.mediroutine.entity.LogStatus;
+import com.example.mediroutine.entity.MedicineLog;
+import com.example.mediroutine.entity.MedicineSchedule;
+import com.example.mediroutine.repository.MedicineLogRepository;
+import com.example.mediroutine.repository.MedicineScheduleRepository;
+>>>>>>> Stashed changes
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+<<<<<<< Updated upstream
 import java.time.*;
 import java.util.ArrayList;
+=======
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+>>>>>>> Stashed changes
 import java.util.List;
 import java.util.Optional;
 
@@ -24,7 +38,12 @@ public class MedicineLogService {
     private final MedicineLogRepository medicineLogRepository;
     private final MedicineScheduleRepository medicineScheduleRepository;
 
+<<<<<<< Updated upstream
     public MedicineLogService(MedicineLogRepository medicineLogRepository,MedicineScheduleRepository medicineScheduleRepository) {
+=======
+    public MedicineLogService(MedicineLogRepository medicineLogRepository,
+                              MedicineScheduleRepository medicineScheduleRepository) {
+>>>>>>> Stashed changes
         this.medicineLogRepository = medicineLogRepository;
         this.medicineScheduleRepository = medicineScheduleRepository;
     }
@@ -41,6 +60,10 @@ public class MedicineLogService {
         return medicineLogRepository.findBySchedule_IdOrderByScheduledDateDescScheduleTimeDesc(scheduleId);
     }
 
+    public Optional<MedicineLog> getTodayLogForSchedule(Long scheduleId) {
+        return medicineLogRepository.findByScheduleIdAndScheduledDate(scheduleId, LocalDate.now());
+    }
+
     public MedicineLog saveLog(MedicineLog log) {
         return medicineLogRepository.save(log);
     }
@@ -49,6 +72,7 @@ public class MedicineLogService {
         medicineLogRepository.deleteById(id);
     }
 
+<<<<<<< Updated upstream
 
     // function definiation for creating the logs if not exists
     @Transactional
@@ -311,6 +335,59 @@ public class MedicineLogService {
     public List<MedicineLog> getLogsOfSchedule(Long scheduleId)
     {
         return medicineLogRepository.findBySchedule_IdOrderByScheduledDateDescScheduledTimeDesc(scheduleId);
+=======
+    public MedicineLog toggleLogStatus(Long id) {
+        MedicineLog log = medicineLogRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Log not found with id: " + id));
+
+        LocalDate today = LocalDate.now();
+        if (log.getScheduledDate() == null || !log.getScheduledDate().isEqual(today)) {
+            throw new IllegalStateException("Only today's medicine logs can be updated.");
+        }
+
+        LocalTime scheduledTime = log.getScheduledTime() != null ? log.getScheduledTime() : LocalTime.of(8, 0);
+        LocalDateTime scheduledDateTime = LocalDateTime.of(today, scheduledTime);
+        LocalDateTime currentDateTime = LocalDateTime.now();
+        LocalDateTime windowEnd = scheduledDateTime.plusHours(1);
+
+        if (log.getStatus() != LogStatus.TAKEN) {
+            log.setStatus(LogStatus.TAKEN);
+            log.setActionTime(currentDateTime);
+        } else {
+            // Revert from TAKEN:
+            // current < scheduled -> SCHEDULED
+            // scheduled <= current <= scheduled + 1hr -> SCHEDULED
+            // current > scheduled + 1hr -> MISSED
+            if (currentDateTime.isAfter(windowEnd)) {
+                log.setStatus(LogStatus.MISSED);
+            } else {
+                log.setStatus(LogStatus.SCHEDULED);
+            }
+            log.setActionTime(null);
+        }
+
+        return medicineLogRepository.save(log);
+    }
+
+    public MedicineLog toggleScheduleStatusForToday(Long scheduleId) {
+        LocalDate today = LocalDate.now();
+        Optional<MedicineLog> existingLog = medicineLogRepository.findByScheduleIdAndScheduledDate(scheduleId, today);
+        if (existingLog.isPresent()) {
+            return toggleLogStatus(existingLog.get().getId());
+        }
+
+        MedicineSchedule schedule = medicineScheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new IllegalArgumentException("Schedule not found with id: " + scheduleId));
+
+        MedicineLog newLog = new MedicineLog();
+        newLog.setSchedule(schedule);
+        newLog.setScheduledDate(today);
+        newLog.setScheduledTime(schedule.getTime() != null ? schedule.getTime() : LocalTime.of(8, 0));
+        newLog.setStatus(LogStatus.TAKEN);
+        newLog.setActionTime(LocalDateTime.now());
+
+        return medicineLogRepository.save(newLog);
+>>>>>>> Stashed changes
     }
 }
 
