@@ -34,8 +34,49 @@ class _ClientDashboardState extends State<ClientDashboard> {
   String? _errorMessage;
 
   final Set<String> _takenKeys = {};
+  final Set<int> _updatingLogIds = {};
 
   int? get _currentUserId => widget.userId ?? UserSession.userid;
+
+  String get _todayDate {
+    final now = DateTime.now();
+    return '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+  }
+
+  /// Gets the current-day log for one schedule.
+  /// GET /api/logs/schedule/{scheduleId} should return a list of log DTOs.
+  Future<Map<String, dynamic>?> _getTodayLogForSchedule(
+      int? scheduleId,
+      ) async {
+    if (scheduleId == null) return null;
+
+    try {
+      final response =
+      await ApiService.get('/api/logs/schedule/$scheduleId');
+
+      if (response is! List) return null;
+
+      for (final item in response) {
+        final log = _toMap(item);
+        if (log == null) continue;
+
+        final scheduledDate =
+            log['scheduledDate']?.toString().split('T').first;
+
+        if (scheduledDate == _todayDate) {
+          return log;
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        'Could not load today log for schedule $scheduleId: $e',
+      );
+    }
+
+    return null;
+  }
 
   @override
   void initState() {
@@ -129,7 +170,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
         debugPrint(
           'Medicine API returned '
-          '${medicineList.length} medicines',
+              '${medicineList.length} medicines',
         );
       } catch (e) {
         debugPrint('Error fetching medicines: $e');
@@ -172,7 +213,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
         debugPrint(
           'Schedule API returned '
-          '${scheduleList.length} schedules',
+              '${scheduleList.length} schedules',
         );
       } catch (e) {
         debugPrint('Error fetching schedules: $e');
@@ -210,7 +251,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
         if (medicineId == null) {
           debugPrint(
             'Skipping schedule because '
-            'medicineId is missing: $scheduleMap',
+                'medicineId is missing: $scheduleMap',
           );
 
           continue;
@@ -221,15 +262,15 @@ class _ClientDashboardState extends State<ClientDashboard> {
         if (medicineMap == null) {
           debugPrint(
             'Medicine $medicineId not found '
-            'for schedule $scheduleId',
+                'for schedule $scheduleId',
           );
 
           continue;
         }
 
         final medicineName =
-            (medicineMap['name'] ?? medicineMap['medicineName'] ?? 'Medicine')
-                .toString();
+        (medicineMap['name'] ?? medicineMap['medicineName'] ?? 'Medicine')
+            .toString();
 
         final medicineDescription = medicineMap['description']?.toString();
 
@@ -262,7 +303,11 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
         final routineKey = '${medicineId}_${scheduleId ?? ''}_$timeStr';
 
-        final isTaken = _takenKeys.contains(routineKey);
+        final todayLog = await _getTodayLogForSchedule(scheduleId);
+        final todayLogId = _toInt(todayLog?['id']);
+        final todayStatus =
+        (todayLog?['status'] ?? 'SCHEDULED').toString().toUpperCase();
+        final isTaken = todayStatus == 'TAKEN';
 
         parsedRoutines.add({
           'userId': userId,
@@ -288,6 +333,8 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
           'instruction': instruction,
           'taken': isTaken,
+          'logId': todayLogId,
+          'status': todayStatus,
           'routineKey': routineKey,
 
           'color': _getColorForPeriod(periodStr, timeStr),
@@ -315,8 +362,8 @@ class _ClientDashboardState extends State<ClientDashboard> {
           }
 
           final medicineName =
-              (medicineMap['name'] ?? medicineMap['medicineName'] ?? 'Medicine')
-                  .toString();
+          (medicineMap['name'] ?? medicineMap['medicineName'] ?? 'Medicine')
+              .toString();
 
           final medicineDescription = medicineMap['description']?.toString();
 
@@ -354,7 +401,11 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
             final routineKey = '${medicineId}_${scheduleId ?? ''}_$timeStr';
 
-            final isTaken = _takenKeys.contains(routineKey);
+            final todayLog = await _getTodayLogForSchedule(scheduleId);
+            final todayLogId = _toInt(todayLog?['id']);
+            final todayStatus =
+            (todayLog?['status'] ?? 'SCHEDULED').toString().toUpperCase();
+            final isTaken = todayStatus == 'TAKEN';
 
             String instruction = 'Take as prescribed';
 
@@ -387,6 +438,8 @@ class _ClientDashboardState extends State<ClientDashboard> {
               'instruction': instruction,
 
               'taken': isTaken,
+              'logId': todayLogId,
+              'status': todayStatus,
 
               'routineKey': routineKey,
 
@@ -635,32 +688,77 @@ class _ClientDashboardState extends State<ClientDashboard> {
   // TOGGLE TAKEN
   // ============================================================
 
-  void _toggleTaken(int index) {
-    if (index < 0 || index >= _routines.length) {
+  Future<void> _toggleTaken(int index) async {
+    if (index < 0 || index >= _routines.length) return;
+
+    final routine = _routines[index];
+    final logId = _toInt(routine['logId']);
+
+    if (logId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Today's medicine log is not available yet. "
+                  "Please try again after today's logs are generated.",
+            ),
+          ),
+        );
+      }
       return;
     }
 
+    if (_updatingLogIds.contains(logId)) return;
+
+    final previousTaken = routine['taken'] == true;
+    final previousStatus = (routine['status'] ?? 'SCHEDULED').toString();
+
+    // Update the UI immediately while the backend request is in progress.
     setState(() {
-      final routine = _routines[index];
-
-      final current = routine['taken'] == true;
-
-      final updated = !current;
-
-      routine['taken'] = updated;
-
-      final key =
-          routine['routineKey']?.toString() ??
-          '${routine['medicineId']}_'
-              '${routine['scheduleId']}_'
-              '${routine['time']}';
-
-      if (updated) {
-        _takenKeys.add(key);
-      } else {
-        _takenKeys.remove(key);
-      }
+      _updatingLogIds.add(logId);
+      routine['taken'] = !previousTaken;
+      routine['status'] = !previousTaken ? 'TAKEN' : previousStatus;
     });
+
+    try {
+      final response = await ApiService.post(
+        '/api/logs/$logId/toggle',
+        <String, dynamic>{},
+      );
+
+      final responseMap = _toMap(response);
+      if (responseMap == null || responseMap['status'] == null) {
+        throw Exception('The server returned an invalid log status.');
+      }
+
+      final newStatus = responseMap['status'].toString().toUpperCase();
+
+      if (!mounted) return;
+
+      setState(() {
+        routine['status'] = newStatus;
+        routine['taken'] = newStatus == 'TAKEN';
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        routine['taken'] = previousTaken;
+        routine['status'] = previousStatus;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update medicine status. $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingLogIds.remove(logId);
+        });
+      } else {
+        _updatingLogIds.remove(logId);
+      }
+    }
   }
 
   // ============================================================
@@ -711,7 +809,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
             Expanded(
               child: Text(
                 'Added "$medName" '
-                'to routine schedule',
+                    'to routine schedule',
               ),
             ),
           ],
@@ -1033,7 +1131,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                       final instruction =
                           routine['instruction']?.toString() ??
-                          'Take as prescribed';
+                              'Take as prescribed';
 
                       final time = routine['time']?.toString() ?? '08:30 AM';
 
@@ -1195,7 +1293,7 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                   minimumSize: Size.zero,
 
                                   tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
+                                  MaterialTapTargetSize.shrinkWrap,
 
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
@@ -1228,19 +1326,34 @@ class _ClientDashboardState extends State<ClientDashboard> {
                               // TAKEN BUTTON
                               // =================================================
                               IconButton(
-                                onPressed: () {
+                                onPressed: _toInt(routine['logId']) == null ||
+                                    _updatingLogIds.contains(
+                                      _toInt(routine['logId']),
+                                    )
+                                    ? null
+                                    : () {
                                   _toggleTaken(index);
                                 },
-
                                 tooltip: isTaken
                                     ? 'Mark as not taken'
                                     : 'Mark as taken',
-
-                                icon: Icon(
+                                icon: _updatingLogIds.contains(
+                                  _toInt(routine['logId']),
+                                )
+                                    ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                    : Icon(
                                   isTaken
                                       ? Icons.check_circle
                                       : Icons.radio_button_unchecked,
-                                  color: isTaken ? Colors.green : Colors.grey,
+                                  color: isTaken
+                                      ? Colors.green
+                                      : Colors.grey,
                                 ),
                               ),
                             ],
