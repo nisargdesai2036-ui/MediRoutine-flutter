@@ -1,24 +1,24 @@
 | Feature               | Method   | Endpoint                               | Purpose                         |
 | --------------------- | -------- | -------------------------------------- | ------------------------------- |
 
-| **Users**             | `POST`   | `/api/users`                           | Register/create a user          |
+| **Users**             --| `POST`   | `/api/users`                           | Register/create a user          |
 |                       | `GET`    | `/api/users`                           | Get all users                   |
-|                       | `GET`    | `/api/users/{id}`                      | Get a user by ID                |
-|                       | `GET`    | `/api/users/email/{email}`             | Find user by email              |
-|                       | `PUT`    | `/api/users/{id}`                      | Update user details             |
+|                       --| `GET`    | `/api/users/{id}`                      | Get a user by ID                |
+|                       --| `GET`    | `/api/users/email/{email}`             | Find user by email              |
+|                       --| `PUT`    | `/api/users/{id}`                      | Update user details             |
 |                       | `DELETE` | `/api/users/{id}`                      | Delete user                     |
 
-| **Medicines**         | `POST`   | `/api/medicines`                       | Add a medicine                  |
+| **Medicines**         --| `POST`   | `/api/medicines`                       | Add a medicine                  |
 |                       | `GET`    | `/api/medicines/{id}`                  | Get medicine details            |
-|                       | `GET`    | `/api/medicines/user/{userId}`         | Get all medicines of a user     |
+|                       --| `GET`    | `/api/medicines/user/{userId}`         | Get all medicines of a user     |
 |                       | `GET`    | `/api/medicines`                       | Get all medicines               |
-|                       | `PUT`    | `/api/medicines/{id}`                  | Update medicine                 |
+|                       --| `PUT`    | `/api/medicines/{id}`                  | Update medicine                 |
 |                       | `DELETE` | `/api/medicines/{id}`                  | Delete medicine                 |
 
-| **Schedules**         | `POST`   | `/api/schedules`                       | Create medicine schedule        |
+| **Schedules**         --| `POST`   | `/api/schedules`                       | Create medicine schedule        |
 |                       | `GET`    | `/api/schedules/{id}`                  | Get schedule                    |
 |                       | `GET`    | `/api/schedules/medicine/{medicineId}` | Get schedules for a medicine    |
-|                       | `PUT`    | `/api/schedules/{id}`                  | Update schedule                 |
+|                       --| `PUT`    | `/api/schedules/{id}`                  | Update schedule                 |
 |                       | `DELETE` | `/api/schedules/{id}`                  | Delete schedule                 |
 
 | **Medicine Logs**     | `POST`   | `/api/logs`                            | Create a medicine log           |

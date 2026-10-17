@@ -40,3 +40,9 @@ out/
 local.properties
 node_modules/
 
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+

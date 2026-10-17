@@ -10,7 +10,12 @@ public class MedicineResponse {
     public MedicineResponse() {
     }
 
-    public MedicineResponse(Long id, String name, String description, Long userId) {
+    public MedicineResponse(
+            Long id,
+            String name,
+            String description,
+            Long userId
+    ) {
         this.id = id;
         this.name = name;
         this.description = description;

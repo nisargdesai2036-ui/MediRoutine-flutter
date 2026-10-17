@@ -2,6 +2,7 @@ package com.example.mediroutine.controller;
 
 import com.example.mediroutine.dto.MedicineLogRequest;
 import com.example.mediroutine.dto.MedicineLogResponse;
+import com.example.mediroutine.dto.MedicineLogStatusResponse;
 import com.example.mediroutine.entity.MedicineLog;
 import com.example.mediroutine.entity.MedicineSchedule;
 import com.example.mediroutine.service.MedicineLogService;
@@ -101,5 +102,26 @@ public class MedicineLogController {
                 log.getActionTime(),
                 log.getStatus()
         );
+
     }
-}
+        // Add inside your existing MedicineLogController class
+
+    @PostMapping("/schedule/{scheduleId}/toggle")
+    public ResponseEntity<MedicineLogStatusResponse> toggleTaken(
+            @PathVariable Long scheduleId) {
+
+        MedicineLogStatusResponse response =
+                medicineLogService.toggleScheduleTaken(scheduleId);
+
+        return ResponseEntity.ok(response);
+    }
+    }
+
+//    @GetMapping("/logsSchedule/{scheduleId}")
+//    public ResponseEntity<List<MedicineLog>> getLogsBySchedule(@PathVariable("scheduleId")  Long scheduleId)
+//    {
+//        List<MedicineLog> logsofSchedule = medicineLogService.getLogsOfSchedule(scheduleId);
+//
+//        return ResponseEntity.ok(logsofSchedule);
+//    }
+

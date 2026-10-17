@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+//import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_page.dart';
 import 'screens/signup.dart';
 import 'screens/profile_page.dart';
@@ -9,10 +9,12 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // await Supabase.initialize(
-  //   url: 'https://vmpzdwaeqjyfspqdrcix.supabase.co',
-  //   anonKey: 'sb_publishable_inFK6JbPWnMQs4d-3yaf6Q_pgDzhI1K',
-  // );
+  await dotenv.load(fileName: ".env");
+
+//   await Supabase.initialize(
+//     url: 'https://vmpzdwaeqjyfspqdrcix.supabase.co',
+//     anonKey: 'sb_publishable_inFK6JbPWnMQs4d-3yaf6Q_pgDzhI1K',
+//   );
 
   runApp(const MediRoutineApp());
 }

@@ -1,10 +1,12 @@
 package com.example.mediroutine.dto;
 
 import com.example.mediroutine.entity.LogStatus;
+import com.example.mediroutine.entity.MedicineLog;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 public class MedicineLogRequest {
 
@@ -25,6 +27,7 @@ public class MedicineLogRequest {
         this.actionTime = actionTime;
         this.status = status;
     }
+
 
     public Long getScheduleId() {
         return scheduleId;

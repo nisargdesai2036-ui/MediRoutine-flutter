@@ -7,7 +7,20 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Entity
-@Table(name = "medicine_logs")
+@Table(
+        // due to this duplication in log will not be there  column will help to keep uniqueness in records
+        name = "medicine_logs",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_schedule_date_time",
+                columnNames = {
+                        "schedule_id",
+                        "scheduled_date",
+                        "scheduled_time"
+                    }
+
+                )
+            }
+        )
 public class MedicineLog {
 
     @Id
