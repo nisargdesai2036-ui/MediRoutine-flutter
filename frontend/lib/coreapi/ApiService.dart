@@ -13,10 +13,10 @@ class ApiService {
     }
     try {
       if (Platform.isAndroid) {
-        return "http://10.0.2.2:8080";
+        return "http://10.49.140.230:8080";
       }
     } catch (_) {
-      // Fallback for platforms where dart:io Platform is not available
+      // Fallback for other platforms
     }
     return "http://localhost:8080";
   }
