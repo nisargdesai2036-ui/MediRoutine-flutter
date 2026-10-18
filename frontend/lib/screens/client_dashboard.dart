@@ -1257,7 +1257,10 @@ class _ClientDashboardState extends State<ClientDashboard> {
                         borderRadius: BorderRadius.circular(16),
 
                         child: Container(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
 
                           decoration: BoxDecoration(
                             color: Colors.white,
@@ -1268,8 +1271,8 @@ class _ClientDashboardState extends State<ClientDashboard> {
                           child: Row(
                             children: [
                               Container(
-                                width: 45,
-                                height: 45,
+                                width: 42,
+                                height: 42,
 
                                 decoration: BoxDecoration(
                                   color: Color(
@@ -1281,10 +1284,11 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                 child: Icon(
                                   Icons.medication,
                                   color: Color(colorValue),
+                                  size: 22,
                                 ),
                               ),
 
-                              const SizedBox(width: 14),
+                              const SizedBox(width: 10),
 
                               Expanded(
                                 child: Column(
@@ -1293,6 +1297,8 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                   children: [
                                     Text(
                                       medicineName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.bold,
@@ -1302,11 +1308,11 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                       ),
                                     ),
 
-                                    const SizedBox(height: 5),
+                                    const SizedBox(height: 3),
 
                                     Text(
                                       instruction,
-                                      maxLines: 2,
+                                      maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 12,
@@ -1316,35 +1322,44 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                                     const SizedBox(height: 5),
 
-                                    Row(
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 4,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
                                       children: [
-                                        const Icon(Icons.access_time, size: 14),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.access_time,
+                                              size: 13,
+                                            ),
 
-                                        const SizedBox(width: 4),
+                                            const SizedBox(width: 3),
 
-                                        Text(
-                                          time,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
+                                            Text(
+                                              time,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-
-                                        const SizedBox(width: 10),
 
                                         Container(
                                           padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
+                                            horizontal: 7,
+                                            vertical: 2,
                                           ),
 
                                           decoration: BoxDecoration(
                                             color: Color(
                                               colorValue,
                                             ).withValues(alpha: 0.10),
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(20),
                                           ),
 
                                           child: Text(
@@ -1363,6 +1378,8 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                 ),
                               ),
 
+                              const SizedBox(width: 6),
+
                               // =================================================
                               // LOGS BUTTON
                               // =================================================
@@ -1375,13 +1392,13 @@ class _ClientDashboardState extends State<ClientDashboard> {
 
                                 icon: const Icon(
                                   Icons.bar_chart_rounded,
-                                  size: 15,
+                                  size: 14,
                                 ),
 
                                 label: const Text(
                                   'Logs',
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -1400,14 +1417,14 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                   ),
 
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
+                                    horizontal: 8,
+                                    vertical: 5,
                                   ),
 
                                   minimumSize: Size.zero,
 
                                   tapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
+                                      MaterialTapTargetSize.shrinkWrap,
 
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
@@ -1415,13 +1432,16 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                 ),
                               ),
 
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 2),
 
                               // =================================================
                               // EDIT BUTTON
                               // =================================================
                               IconButton(
                                 key: Key('edit_routine_button_$index'),
+
+                                padding: const EdgeInsets.all(5),
+                                constraints: const BoxConstraints(),
 
                                 onPressed: () {
                                   _onMedicineClicked(routine);
@@ -1432,9 +1452,11 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                 icon: Icon(
                                   Icons.edit_outlined,
                                   color: Colors.blueGrey.shade400,
-                                  size: 20,
+                                  size: 19,
                                 ),
                               ),
+
+                              const SizedBox(width: 2),
 
                               // =================================================
                               // TAKEN BUTTON
@@ -1445,34 +1467,39 @@ class _ClientDashboardState extends State<ClientDashboard> {
                                       routine['routineKey']?.toString() ??
                                           'routine_$index';
                                   final isUpdating =
-                                  _updatingKeys.contains(routineKey);
+                                      _updatingKeys.contains(routineKey);
 
                                   return IconButton(
                                     key: Key('taken_routine_button_$index'),
+
+                                    padding: const EdgeInsets.all(5),
+                                    constraints: const BoxConstraints(),
+
                                     onPressed: isUpdating
                                         ? null
                                         : () {
-                                      _toggleTaken(index);
-                                    },
+                                            _toggleTaken(index);
+                                          },
                                     tooltip: isTaken
                                         ? 'Mark as not taken'
                                         : 'Mark as taken',
                                     icon: isUpdating
                                         ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
                                         : Icon(
-                                      isTaken
-                                          ? Icons.check_circle
-                                          : Icons.radio_button_unchecked,
-                                      color: isTaken
-                                          ? Colors.green
-                                          : Colors.grey,
-                                    ),
+                                            isTaken
+                                                ? Icons.check_circle
+                                                : Icons.radio_button_unchecked,
+                                            color: isTaken
+                                                ? Colors.green
+                                                : Colors.grey,
+                                            size: 22,
+                                          ),
                                   );
                                 },
                               ),
